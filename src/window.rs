@@ -4,6 +4,7 @@ use std::os::raw::{c_char, c_int, c_void};
 use std::ptr;
 use std::{ffi::NulError, mem};
 
+use bitflags::bitflags;
 use euclid::{Rect, point2};
 use xplm_sys::{self, XPLMSetWindowGravity};
 
@@ -436,12 +437,11 @@ extern "C" fn window_key(
     losing_focus: c_int,
 ) {
     unsafe {
-        let window = refcon.cast::<Window>();
         if losing_focus == 0 {
-            match KeyEvent::from_xplm(key, flags, virtual_key) {
-                Ok(event) => (*window).delegate.keyboard_event(&*window, event),
-                Err(e) => super::debugln!("Invalid key event received: {:?}", e),
-            }
+            let window = refcon.cast::<Window>();
+            (*window)
+                .delegate
+                .keyboard_event(&*window, KeyEvent::from_xplm(key, flags, virtual_key));
         }
     }
 }
@@ -521,388 +521,111 @@ extern "C" fn window_scroll(
     i32::from(!propagate)
 }
 
-/// Key actions
-#[derive(Debug, Clone)]
-pub enum KeyAction {
-    /// The key was pressed down
-    Press,
-    /// The key was released
-    Release,
-}
-
-/// Keys that may be pressed
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Key {
-    Back,
-    Tab,
-    Clear,
-    Return,
-    Escape,
-    Space,
-    Prior,
-    Next,
-    End,
-    Home,
-    Left,
-    Up,
-    Right,
-    Down,
-    Select,
-    Print,
-    Execute,
-    Snapshot,
-    Insert,
-    Delete,
-    Help,
-    /// The 0 key at the top of a keyboard
-    Key0,
-    /// The 1 key at the top of a keyboard
-    Key1,
-    /// The 2 key at the top of a keyboard
-    Key2,
-    /// The 3 key at the top of a keyboard
-    Key3,
-    /// The 4 key at the top of a keyboard
-    Key4,
-    /// The 5 key at the top of a keyboard
-    Key5,
-    /// The 6 key at the top of a keyboard
-    Key6,
-    /// The 7 key at the top of a keyboard
-    Key7,
-    /// The 8 key at the top of a keyboard
-    Key8,
-    /// The 9 key at the top of a keyboard
-    Key9,
-    A,
-    B,
-    C,
-    D,
-    E,
-    F,
-    G,
-    H,
-    I,
-    J,
-    K,
-    L,
-    M,
-    N,
-    O,
-    P,
-    Q,
-    R,
-    S,
-    T,
-    U,
-    V,
-    W,
-    X,
-    Y,
-    Z,
-    /// The 0 key on the numerical keypad
-    Numpad0,
-    /// The 1 key on the numerical keypad
-    Numpad1,
-    /// The 2 key on the numerical keypad
-    Numpad2,
-    /// The 3 key on the numerical keypad
-    Numpad3,
-    /// The 4 key on the numerical keypad
-    Numpad4,
-    /// The 5 key on the numerical keypad
-    Numpad5,
-    /// The 6 key on the numerical keypad
-    Numpad6,
-    /// The 7 key on the numerical keypad
-    Numpad7,
-    /// The 8 key on the numerical keypad
-    Numpad8,
-    /// The 9 key on the numerical keypad
-    Numpad9,
-    Multiply,
-    Add,
-    Separator,
-    Subtract,
-    Decimal,
-    Divide,
-    F1,
-    F2,
-    F3,
-    F4,
-    F5,
-    F6,
-    F7,
-    F8,
-    F9,
-    F10,
-    F11,
-    F12,
-    F13,
-    F14,
-    F15,
-    F16,
-    F17,
-    F18,
-    F19,
-    F20,
-    F21,
-    F22,
-    F23,
-    F24,
-    Equal,
-    Minus,
-    ClosingBrace,
-    OpeningBrace,
-    Quote,
-    Semicolon,
-    Backslash,
-    Comma,
-    Slash,
-    Period,
-    Backquote,
-    /// Enter, also known as return in Mac OS
-    Enter,
-    NumpadEnter,
-    NumpadEqual,
-}
-
-impl std::fmt::Display for Key {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let dbg = format!("{self:?}");
-        write!(f, "{}", dbg.strip_prefix("Key::").unwrap_or(&dbg))
-    }
-}
-
-#[allow(clippy::cast_sign_loss, clippy::too_many_lines)]
-impl Key {
-    /// Converts an XPLM virtual key code into a Key
-    fn from_xplm(virtual_key: c_char) -> Option<Self> {
-        match virtual_key as u32 {
-            xplm_sys::XPLM_VK_BACK => Some(Key::Back),
-            xplm_sys::XPLM_VK_TAB => Some(Key::Tab),
-            xplm_sys::XPLM_VK_CLEAR => Some(Key::Clear),
-            xplm_sys::XPLM_VK_RETURN => Some(Key::Return),
-            xplm_sys::XPLM_VK_ESCAPE => Some(Key::Escape),
-            xplm_sys::XPLM_VK_SPACE => Some(Key::Space),
-            xplm_sys::XPLM_VK_PRIOR => Some(Key::Prior),
-            xplm_sys::XPLM_VK_NEXT => Some(Key::Next),
-            xplm_sys::XPLM_VK_END => Some(Key::End),
-            xplm_sys::XPLM_VK_HOME => Some(Key::Home),
-            xplm_sys::XPLM_VK_LEFT => Some(Key::Left),
-            xplm_sys::XPLM_VK_UP => Some(Key::Up),
-            xplm_sys::XPLM_VK_RIGHT => Some(Key::Right),
-            xplm_sys::XPLM_VK_DOWN => Some(Key::Down),
-            xplm_sys::XPLM_VK_SELECT => Some(Key::Select),
-            xplm_sys::XPLM_VK_PRINT => Some(Key::Print),
-            xplm_sys::XPLM_VK_EXECUTE => Some(Key::Execute),
-            xplm_sys::XPLM_VK_SNAPSHOT => Some(Key::Snapshot),
-            xplm_sys::XPLM_VK_INSERT => Some(Key::Insert),
-            xplm_sys::XPLM_VK_DELETE => Some(Key::Delete),
-            xplm_sys::XPLM_VK_HELP => Some(Key::Help),
-            xplm_sys::XPLM_VK_0 => Some(Key::Key0),
-            xplm_sys::XPLM_VK_1 => Some(Key::Key1),
-            xplm_sys::XPLM_VK_2 => Some(Key::Key2),
-            xplm_sys::XPLM_VK_3 => Some(Key::Key3),
-            xplm_sys::XPLM_VK_4 => Some(Key::Key4),
-            xplm_sys::XPLM_VK_5 => Some(Key::Key5),
-            xplm_sys::XPLM_VK_6 => Some(Key::Key6),
-            xplm_sys::XPLM_VK_7 => Some(Key::Key7),
-            xplm_sys::XPLM_VK_8 => Some(Key::Key8),
-            xplm_sys::XPLM_VK_9 => Some(Key::Key9),
-            xplm_sys::XPLM_VK_A => Some(Key::A),
-            xplm_sys::XPLM_VK_B => Some(Key::B),
-            xplm_sys::XPLM_VK_C => Some(Key::C),
-            xplm_sys::XPLM_VK_D => Some(Key::D),
-            xplm_sys::XPLM_VK_E => Some(Key::E),
-            xplm_sys::XPLM_VK_F => Some(Key::F),
-            xplm_sys::XPLM_VK_G => Some(Key::G),
-            xplm_sys::XPLM_VK_H => Some(Key::H),
-            xplm_sys::XPLM_VK_I => Some(Key::I),
-            xplm_sys::XPLM_VK_J => Some(Key::J),
-            xplm_sys::XPLM_VK_K => Some(Key::K),
-            xplm_sys::XPLM_VK_L => Some(Key::L),
-            xplm_sys::XPLM_VK_M => Some(Key::M),
-            xplm_sys::XPLM_VK_N => Some(Key::N),
-            xplm_sys::XPLM_VK_O => Some(Key::O),
-            xplm_sys::XPLM_VK_P => Some(Key::P),
-            xplm_sys::XPLM_VK_Q => Some(Key::Q),
-            xplm_sys::XPLM_VK_R => Some(Key::R),
-            xplm_sys::XPLM_VK_S => Some(Key::S),
-            xplm_sys::XPLM_VK_T => Some(Key::T),
-            xplm_sys::XPLM_VK_U => Some(Key::U),
-            xplm_sys::XPLM_VK_V => Some(Key::V),
-            xplm_sys::XPLM_VK_W => Some(Key::W),
-            xplm_sys::XPLM_VK_X => Some(Key::X),
-            xplm_sys::XPLM_VK_Y => Some(Key::Y),
-            xplm_sys::XPLM_VK_Z => Some(Key::Z),
-            xplm_sys::XPLM_VK_NUMPAD0 => Some(Key::Numpad0),
-            xplm_sys::XPLM_VK_NUMPAD1 => Some(Key::Numpad1),
-            xplm_sys::XPLM_VK_NUMPAD2 => Some(Key::Numpad2),
-            xplm_sys::XPLM_VK_NUMPAD3 => Some(Key::Numpad3),
-            xplm_sys::XPLM_VK_NUMPAD4 => Some(Key::Numpad4),
-            xplm_sys::XPLM_VK_NUMPAD5 => Some(Key::Numpad5),
-            xplm_sys::XPLM_VK_NUMPAD6 => Some(Key::Numpad6),
-            xplm_sys::XPLM_VK_NUMPAD7 => Some(Key::Numpad7),
-            xplm_sys::XPLM_VK_NUMPAD8 => Some(Key::Numpad8),
-            xplm_sys::XPLM_VK_NUMPAD9 => Some(Key::Numpad9),
-            xplm_sys::XPLM_VK_MULTIPLY => Some(Key::Multiply),
-            xplm_sys::XPLM_VK_ADD => Some(Key::Add),
-            xplm_sys::XPLM_VK_SEPARATOR => Some(Key::Separator),
-            xplm_sys::XPLM_VK_SUBTRACT => Some(Key::Subtract),
-            xplm_sys::XPLM_VK_DECIMAL => Some(Key::Decimal),
-            xplm_sys::XPLM_VK_DIVIDE => Some(Key::Divide),
-            xplm_sys::XPLM_VK_F1 => Some(Key::F1),
-            xplm_sys::XPLM_VK_F2 => Some(Key::F2),
-            xplm_sys::XPLM_VK_F3 => Some(Key::F3),
-            xplm_sys::XPLM_VK_F4 => Some(Key::F4),
-            xplm_sys::XPLM_VK_F5 => Some(Key::F5),
-            xplm_sys::XPLM_VK_F6 => Some(Key::F6),
-            xplm_sys::XPLM_VK_F7 => Some(Key::F7),
-            xplm_sys::XPLM_VK_F8 => Some(Key::F8),
-            xplm_sys::XPLM_VK_F9 => Some(Key::F9),
-            xplm_sys::XPLM_VK_F10 => Some(Key::F10),
-            xplm_sys::XPLM_VK_F11 => Some(Key::F11),
-            xplm_sys::XPLM_VK_F12 => Some(Key::F12),
-            xplm_sys::XPLM_VK_F13 => Some(Key::F13),
-            xplm_sys::XPLM_VK_F14 => Some(Key::F14),
-            xplm_sys::XPLM_VK_F15 => Some(Key::F15),
-            xplm_sys::XPLM_VK_F16 => Some(Key::F16),
-            xplm_sys::XPLM_VK_F17 => Some(Key::F17),
-            xplm_sys::XPLM_VK_F18 => Some(Key::F18),
-            xplm_sys::XPLM_VK_F19 => Some(Key::F19),
-            xplm_sys::XPLM_VK_F20 => Some(Key::F20),
-            xplm_sys::XPLM_VK_F21 => Some(Key::F21),
-            xplm_sys::XPLM_VK_F22 => Some(Key::F22),
-            xplm_sys::XPLM_VK_F23 => Some(Key::F23),
-            xplm_sys::XPLM_VK_F24 => Some(Key::F24),
-            xplm_sys::XPLM_VK_EQUAL => Some(Key::Equal),
-            xplm_sys::XPLM_VK_MINUS => Some(Key::Minus),
-            xplm_sys::XPLM_VK_RBRACE => Some(Key::ClosingBrace),
-            xplm_sys::XPLM_VK_LBRACE => Some(Key::OpeningBrace),
-            xplm_sys::XPLM_VK_QUOTE => Some(Key::Quote),
-            xplm_sys::XPLM_VK_SEMICOLON => Some(Key::Semicolon),
-            xplm_sys::XPLM_VK_BACKSLASH => Some(Key::Backslash),
-            xplm_sys::XPLM_VK_COMMA => Some(Key::Comma),
-            xplm_sys::XPLM_VK_SLASH => Some(Key::Slash),
-            xplm_sys::XPLM_VK_PERIOD => Some(Key::Period),
-            xplm_sys::XPLM_VK_BACKQUOTE => Some(Key::Backquote),
-            xplm_sys::XPLM_VK_ENTER => Some(Key::Enter),
-            xplm_sys::XPLM_VK_NUMPAD_ENT => Some(Key::NumpadEnter),
-            xplm_sys::XPLM_VK_NUMPAD_EQ => Some(Key::NumpadEqual),
-            _ => None,
-        }
-    }
-
-    /// Converts an XPLM (non-virtual) key code into a Key
-    fn from_xplm_non_virtual(xplm_key: c_char) -> Option<Self> {
-        match xplm_key as u32 {
-            xplm_sys::XPLM_KEY_DECIMAL => Some(Key::Period),
-            _ => None,
-        }
-    }
-}
-
 /// An event associated with a key press
 #[derive(Debug)]
 pub struct KeyEvent {
-    /// A character representing the key
-    basic_char: Option<char>,
-    /// The key
-    key: Key,
-    /// The action
-    action: KeyAction,
-    /// If the control key was pressed
-    control_pressed: bool,
-    /// If the option/alt key was pressed
-    option_pressed: bool,
-    /// If the shift key was pressed
-    shift_pressed: bool,
+    /// Text
+    pub basic_char: Option<char>,
+
+    /// Key
+    pub key: Option<egui::Key>,
+
+    /// Flags
+    pub flags: KeyFlags,
+}
+
+bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub struct KeyFlags: u32 {
+        const SHIFT      = xplm_sys::xplm_ShiftFlag;
+        const OPTION_ALT = xplm_sys::xplm_OptionAltFlag;
+        const CONTROL    = xplm_sys::xplm_ControlFlag;
+        const DOWN       = xplm_sys::xplm_DownFlag;
+        const UP         = xplm_sys::xplm_UpFlag;
+    }
+}
+
+impl KeyFlags {
+    #[must_use]
+    pub fn shift(self) -> bool {
+        self.contains(Self::SHIFT)
+    }
+
+    #[must_use]
+    pub fn option_alt(self) -> bool {
+        self.contains(Self::OPTION_ALT)
+    }
+
+    #[must_use]
+    pub fn control(self) -> bool {
+        self.contains(Self::CONTROL)
+    }
+
+    #[must_use]
+    pub fn down(self) -> bool {
+        self.contains(Self::DOWN)
+    }
+
+    #[must_use]
+    pub fn up(self) -> bool {
+        self.contains(Self::UP)
+    }
 }
 
 impl KeyEvent {
-    /// Creates a key event from XPLM key information
-    fn from_xplm(
-        key: c_char,
-        flags: xplm_sys::XPLMKeyFlags,
-        virtual_key: c_char,
-    ) -> Result<Self, KeyEventError> {
-        let basic_char = match key.cast_unsigned() {
-            // Accept printable characters, including spaces and tabs
-            b'\t' | b' '..=b'~' => Some(key.cast_unsigned() as char),
-            _ => None,
+    /// Creates an egui key event from XPLM key information
+    fn from_xplm(key: c_char, flags: xplm_sys::XPLMKeyFlags, vkey: c_char) -> Self {
+        let key = key.cast_unsigned();
+        let vkey = vkey.cast_unsigned();
+        let flags = KeyFlags::from_bits_truncate(flags.cast_unsigned());
+
+        let Some(desc) = (unsafe {
+            let cstr = xplm_sys::XPLMGetVirtualKeyDescription(vkey.cast_signed());
+            std::ffi::CStr::from_ptr(cstr).to_str().ok()
+        }) else {
+            return KeyEvent {
+                basic_char: None,
+                key: None,
+                flags,
+            };
         };
-        let action = if flags & xplm_sys::xplm_DownFlag.cast_signed() != 0 {
-            KeyAction::Press
-        } else if flags & xplm_sys::xplm_UpFlag.cast_signed() != 0 {
-            KeyAction::Release
+        let desc = desc.replace("Numpad-", "Numpad");
+
+        let ascii = if key.is_ascii() {
+            Some(key as char)
         } else {
-            return Err(KeyEventError::InvalidFlags(flags));
-        };
-        let control_pressed = flags & xplm_sys::xplm_ControlFlag.cast_signed() != 0;
-        let shift_pressed = flags & xplm_sys::xplm_ShiftFlag.cast_signed() != 0;
-        let option_pressed = flags & xplm_sys::xplm_OptionAltFlag.cast_signed() != 0;
-        let key = match Key::from_xplm(virtual_key) {
-            Some(key) => key,
-            // some keys (notably period on the main keyboard) don't have virtual keys
-            None => match Key::from_xplm_non_virtual(key) {
-                Some(key) => key,
-                None => return Err(KeyEventError::InvalidKey(virtual_key)),
-            },
+            None
         };
 
-        Ok(KeyEvent {
-            basic_char,
-            key,
-            action,
-            control_pressed,
-            option_pressed,
-            shift_pressed,
-        })
-    }
-    /// Returns the character corresponding to the key associated with this event, if one exists
-    ///
-    /// Some key combinations, including combinations with non-Shift modifiers, may not have
-    /// corresponding characters.
-    #[must_use]
-    pub fn char(&self) -> Option<char> {
-        self.basic_char
-    }
-    /// Returns the key associated with this event
-    #[must_use]
-    pub fn key(&self) -> Key {
-        self.key.clone()
-    }
-    /// Returns true if the control key was held down when the action occurred
-    #[must_use]
-    pub fn control_pressed(&self) -> bool {
-        self.control_pressed
-    }
-    /// Returns true if the option/alt key was held down when the action occurred
-    #[must_use]
-    pub fn option_pressed(&self) -> bool {
-        self.option_pressed
-    }
-    /// Returns true if a shift key was held down when the action occurred
-    #[must_use]
-    pub fn shift_pressed(&self) -> bool {
-        self.shift_pressed
-    }
-    /// Returns the key action that occurred
-    #[must_use]
-    pub fn action(&self) -> KeyAction {
-        self.action.clone()
-    }
-}
+        let egui_key = egui::Key::from_name(&desc);
+        let ascii_is_wrong = matches!(vkey, 13 | 9 | 8 | 28..=31 | 46 | 0x08..=0x0D | 0x1B | 0x20..=0x2F | 0x70..=0x87);
 
-/// Key event creation error
-#[derive(thiserror::Error, Debug)]
-enum KeyEventError {
-    #[error("Unexpected key flags {0:b}")]
-    InvalidFlags(xplm_sys::XPLMKeyFlags),
-
-    #[error("Invalid or unsupported key with code: 0x{0:x}")]
-    InvalidKey(c_char),
+        if vkey == 188 {
+            KeyEvent {
+                basic_char: None,
+                key: Some(egui::Key::Enter),
+                flags,
+            }
+        } else if !ascii_is_wrong && ascii.is_some_and(|c| c.is_ascii_graphic()) {
+            KeyEvent {
+                basic_char: ascii,
+                key: egui_key,
+                flags,
+            }
+        } else if egui_key.is_some() {
+            KeyEvent {
+                basic_char: None,
+                key: egui_key,
+                flags,
+            }
+        } else {
+            KeyEvent {
+                basic_char: None,
+                key: None,
+                flags,
+            }
+        }
+    }
 }
 
 /// Actions that the mouse/cursor can perform

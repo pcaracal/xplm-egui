@@ -79,25 +79,27 @@ impl WindowDelegate for EguiWindowContext {
 
     fn keyboard_event(&mut self, _: &crate::window::Window, event: crate::window::KeyEvent) {
         let modifiers = egui::Modifiers {
-            ctrl: event.control_pressed(),
-            alt: event.option_pressed(),
-            shift: event.shift_pressed(),
+            ctrl: event.flags.control(),
+            alt: event.flags.option_alt(),
+            shift: event.flags.shift(),
+            command: event.flags.control(),
             ..Default::default()
         };
         self.egui_input.modifiers = modifiers;
 
-        if matches!(event.action(), crate::window::KeyAction::Press)
-            && let Some(c) = event.char()
+        if event.flags.down()
+            && let Some(c) = event.basic_char
         {
             self.egui_input
                 .events
                 .push(egui::Event::Text(c.to_string()));
         }
-        if let Some(key) = egui::Key::from_name(&event.key().to_string()) {
+
+        if let Some(key) = event.key {
             self.egui_input.events.push(egui::Event::Key {
                 key,
-                physical_key: None,
-                pressed: matches!(event.action(), crate::window::KeyAction::Press),
+                physical_key: Some(key),
+                pressed: event.flags.down(),
                 repeat: false,
                 modifiers,
             });
