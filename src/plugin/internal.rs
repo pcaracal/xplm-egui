@@ -3,6 +3,8 @@ use std::panic;
 use std::panic::AssertUnwindSafe;
 use std::ptr;
 
+use crate::plugin::messages::Message;
+
 use super::super::debugln;
 use super::super::internal::copy_to_c_buffer;
 
@@ -54,7 +56,7 @@ where
                 1
             }
             Err(e) => {
-                debugln!("Plugin failed to start: {}", e);
+                debugln!("Plugin failed to start: {e}");
                 data.plugin = ptr::null_mut();
                 0
             }
@@ -148,7 +150,7 @@ pub unsafe fn xplugin_receive_message<P>(
 {
     if !data.panicked {
         let unwind = panic::catch_unwind(AssertUnwindSafe(|| {
-            (*data.plugin).receive_message(from, message, param);
+            (*data.plugin).receive_message(from, message.into(), param);
         }));
         if unwind.is_err() {
             eprintln!("Panic in XPluginReceiveMessage");

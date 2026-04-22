@@ -12,48 +12,62 @@
 macro_rules! xplane_plugin {
     ($plugin_type: ty) => {
         // The plugin
-        static mut PLUGIN: ::xplm::plugin::internal::PluginData<$plugin_type> =
-            ::xplm::plugin::internal::PluginData {
+        static mut PLUGIN: ::xplm_egui::plugin::internal::PluginData<$plugin_type> =
+            ::xplm_egui::plugin::internal::PluginData {
                 plugin: 0 as *mut _,
                 panicked: false,
             };
 
         #[allow(non_snake_case)]
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub unsafe extern "C" fn XPluginStart(
             name: *mut ::std::os::raw::c_char,
             signature: *mut ::std::os::raw::c_char,
             description: *mut ::std::os::raw::c_char,
         ) -> ::std::os::raw::c_int {
-            ::xplm::plugin::internal::xplugin_start(&mut PLUGIN, name, signature, description)
+            unsafe {
+                ::xplm_egui::plugin::internal::xplugin_start(
+                    &mut PLUGIN,
+                    name,
+                    signature,
+                    description,
+                )
+            }
         }
 
         #[allow(non_snake_case)]
-        #[no_mangle]
-        pub unsafe extern "C" fn XPluginStop() {
-            ::xplm::plugin::internal::xplugin_stop(&mut PLUGIN)
+        #[unsafe(no_mangle)]
+        pub extern "C" fn XPluginStop() {
+            unsafe { ::xplm_egui::plugin::internal::xplugin_stop(&mut PLUGIN) }
         }
 
         #[allow(non_snake_case)]
-        #[no_mangle]
-        pub unsafe extern "C" fn XPluginEnable() -> ::std::os::raw::c_int {
-            ::xplm::plugin::internal::xplugin_enable(&mut PLUGIN)
+        #[unsafe(no_mangle)]
+        pub extern "C" fn XPluginEnable() -> ::std::os::raw::c_int {
+            unsafe { ::xplm_egui::plugin::internal::xplugin_enable(&mut PLUGIN) }
         }
 
         #[allow(non_snake_case)]
-        #[no_mangle]
-        pub unsafe extern "C" fn XPluginDisable() {
-            ::xplm::plugin::internal::xplugin_disable(&mut PLUGIN)
+        #[unsafe(no_mangle)]
+        pub extern "C" fn XPluginDisable() {
+            unsafe { ::xplm_egui::plugin::internal::xplugin_disable(&mut PLUGIN) }
         }
 
         #[allow(non_snake_case)]
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub unsafe extern "C" fn XPluginReceiveMessage(
             from: ::std::os::raw::c_int,
             message: ::std::os::raw::c_int,
             param: *mut ::std::os::raw::c_void,
         ) {
-            ::xplm::plugin::internal::xplugin_receive_message(&mut PLUGIN, from, message, param)
+            unsafe {
+                ::xplm_egui::plugin::internal::xplugin_receive_message(
+                    &mut PLUGIN,
+                    from,
+                    message,
+                    param,
+                )
+            }
         }
     };
 }

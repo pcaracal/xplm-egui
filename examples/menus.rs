@@ -3,11 +3,11 @@
 //! and one action item.
 //!
 
-extern crate xplm;
+extern crate xplm_egui;
 
-use xplm::menu::{ActionItem, CheckHandler, CheckItem, Menu, MenuClickHandler};
-use xplm::plugin::{Plugin, PluginInfo};
-use xplm::{debugln, xplane_plugin};
+use xplm_egui::menu::{ActionItem, CheckHandler, CheckItem, Menu, MenuClickHandler};
+use xplm_egui::plugin::{Plugin, PluginInfo};
+use xplm_egui::{debugln, xplane_plugin};
 
 struct MenuPlugin {
     _plugins_submenu: Menu,

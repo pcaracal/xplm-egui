@@ -1,50 +1,131 @@
 use std::ffi::CString;
 use std::ops::Deref;
-use std::os::raw::*;
+use std::os::raw::{c_char, c_int, c_void};
 use std::ptr;
 use std::{ffi::NulError, mem};
 
-use xplm_sys;
+use euclid::{Rect, point2};
+use xplm_sys::{self, XPLMSetWindowGravity};
 
-use super::geometry::{Point, Rect};
+use crate::geometry::{RectExt, ScreenPoint, ScreenRect, WindowRect};
 
-/// Cursor states that windows can apply
-#[derive(Debug, Default, Copy, Clone, Hash, Eq, PartialEq)]
+#[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Hash)]
+#[repr(u32)]
 pub enum Cursor {
-    /// X-Plane draws the default cursor
+    /// X-Plane manages the cursor normally, plugin does not affect the cusrsor.
     #[default]
-    Default,
-    /// X-Plane draws an arrow cursor (not any other cursor type)
-    Arrow,
-    /// X-Plane hides the cursor. The plugin should draw its own cursor.
-    None,
+    Default = xplm_sys::xplm_CursorDefault,
+    /// X-Plane hides the cursor.
+    Hidden = xplm_sys::xplm_CursorHidden,
+    /// X-Plane shows the cursor as the default arrow.
+    Arrow = xplm_sys::xplm_CursorArrow,
+    /// X-Plane shows the cursor but lets you select an OS cursor.
+    Custom = xplm_sys::xplm_CursorCustom,
+    /// X-Plane shows a small bi-directional knob-rotating cursor.
+    RotateSmall = xplm_sys::xplm_CursorRotateSmall,
+    /// X-Plane shows a small counter-clockwise knob-rotating cursor.
+    RotateSmallLeft = xplm_sys::xplm_CursorRotateSmallLeft,
+    /// X-Plane shows a small clockwise knob-rotating cursor.
+    RotateSmallRight = xplm_sys::xplm_CursorRotateSmallRight,
+    /// X-Plane shows a medium bi-directional knob-rotating cursor.
+    RotateMedium = xplm_sys::xplm_CursorRotateMedium,
+    /// X-Plane shows a medium counter-clockwise knob-rotating cursor.
+    RotateMediumLeft = xplm_sys::xplm_CursorRotateMediumLeft,
+    /// X-Plane shows a medium clockwise knob-rotating cursor.
+    RotateMediumRight = xplm_sys::xplm_CursorRotateMediumRight,
+    /// X-Plane shows a large bi-directional knob-rotating cursor.
+    RotateLarge = xplm_sys::xplm_CursorRotateLarge,
+    /// X-Plane shows a large counter-clockwise knob-rotating cursor.
+    RotateLargeLeft = xplm_sys::xplm_CursorRotateLargeLeft,
+    /// X-Plane shows a large clockwise knob-rotating cursor.
+    RotateLargeRight = xplm_sys::xplm_CursorRotateLargeRight,
+    /// X-Plane shows an up-and-down arrows cursor.
+    UpDown = xplm_sys::xplm_CursorUpDown,
+    /// X-Plane shows a down arrow
+    Down = xplm_sys::xplm_CursorDown,
+    /// X-Plane shows an up arrow cursor.
+    Up = xplm_sys::xplm_CursorUp,
+    /// X-Plane shows a left-right arrow cursor.
+    LeftRight = xplm_sys::xplm_CursorLeftRight,
+    /// X-Plane shows a left arrow cursor.
+    Left = xplm_sys::xplm_CursorLeft,
+    /// X-Plane shows a right arrow cursor.
+    Right = xplm_sys::xplm_CursorRight,
+    /// X-Plane shows a button-pushing cursor.
+    Button = xplm_sys::xplm_CursorButton,
+    /// X-Plane shows a handle-grabbing cursor.
+    Handle = xplm_sys::xplm_CursorHandle,
+    /// X-Plane shows a four-arrows cursor.
+    FourArrows = xplm_sys::xplm_CursorFourArrows,
+    /// X-Plane shows a cursor to drag a horizontal splitter bar.
+    SplitterH = xplm_sys::xplm_CursorSplitterH,
+    /// X-Plane shows a cursor to drag a vertical splitter bar.
+    SplitterV = xplm_sys::xplm_CursorSplitterV,
+    /// X-Plane shows an I-Beam cursor for text editing.
+    Text = xplm_sys::xplm_CursorText,
 }
 
-impl Cursor {
-    /// Converts this cursor into an XPLMCursorStatus
-    fn as_xplm(&self) -> xplm_sys::XPLMCursorStatus {
-        match *self {
-            Cursor::Default => xplm_sys::xplm_CursorDefault as xplm_sys::XPLMCursorStatus,
-            Cursor::Arrow => xplm_sys::xplm_CursorArrow as xplm_sys::XPLMCursorStatus,
-            Cursor::None => xplm_sys::xplm_CursorHidden as xplm_sys::XPLMCursorStatus,
+impl From<egui::CursorIcon> for Cursor {
+    fn from(icon: egui::CursorIcon) -> Self {
+        use Cursor as C;
+        #[allow(unreachable_patterns)]
+        #[allow(clippy::match_same_arms)]
+        match icon {
+            egui::CursorIcon::Default => C::Default,
+            egui::CursorIcon::None => C::Hidden,
+            egui::CursorIcon::ContextMenu => C::Arrow,
+            egui::CursorIcon::Help => C::Arrow,
+            egui::CursorIcon::PointingHand => C::Button,
+            egui::CursorIcon::Progress => C::Arrow,
+            egui::CursorIcon::Wait => C::Arrow,
+            egui::CursorIcon::Cell => C::Arrow,
+            egui::CursorIcon::Crosshair => C::Default,
+            egui::CursorIcon::Text => C::Text,
+            egui::CursorIcon::VerticalText => C::Text,
+            egui::CursorIcon::Alias => C::Arrow,
+            egui::CursorIcon::Copy => C::Arrow,
+            egui::CursorIcon::Move => C::FourArrows,
+            egui::CursorIcon::NoDrop => C::Arrow,
+            egui::CursorIcon::NotAllowed => C::Arrow,
+            egui::CursorIcon::Grab => C::Handle,
+            egui::CursorIcon::Grabbing => C::Handle,
+            egui::CursorIcon::AllScroll => C::FourArrows,
+            egui::CursorIcon::ResizeHorizontal => C::LeftRight,
+            egui::CursorIcon::ResizeNeSw => C::UpDown,
+            egui::CursorIcon::ResizeNwSe => C::UpDown,
+            egui::CursorIcon::ResizeVertical => C::UpDown,
+            egui::CursorIcon::ResizeEast => C::Right,
+            egui::CursorIcon::ResizeSouthEast => C::Down,
+            egui::CursorIcon::ResizeSouth => C::Down,
+            egui::CursorIcon::ResizeSouthWest => C::Down,
+            egui::CursorIcon::ResizeWest => C::Left,
+            egui::CursorIcon::ResizeNorthWest => C::Up,
+            egui::CursorIcon::ResizeNorth => C::Up,
+            egui::CursorIcon::ResizeNorthEast => C::Up,
+            egui::CursorIcon::ResizeColumn => C::LeftRight,
+            egui::CursorIcon::ResizeRow => C::UpDown,
+            egui::CursorIcon::ZoomIn => C::Arrow,
+            egui::CursorIcon::ZoomOut => C::Arrow,
+            _ => C::Default,
         }
     }
 }
 
 /// Trait for things that can define the behavior of a window
+#[allow(unused_variables)]
 pub trait WindowDelegate: 'static {
     /// Draws this window
     fn draw(&mut self, window: &Window);
     /// Handles a keyboard event
     ///
     /// The default implementation does nothing
-    fn keyboard_event(&mut self, _window: &Window, _event: KeyEvent) {}
+    fn keyboard_event(&mut self, window: &Window, event: KeyEvent) {}
     /// Handles a mouse event
     ///
     /// Return false to consume the event or true to propagate it.
     ///
     /// The default implementation does nothing and allows the event to propagate.
-    fn mouse_event(&mut self, _window: &Window, _event: MouseEvent) -> bool {
+    fn mouse_event(&mut self, window: &Window, event: MouseEvent) -> bool {
         true
     }
     /// Handles a right-click event
@@ -52,7 +133,7 @@ pub trait WindowDelegate: 'static {
     /// Return false to consume the event or true to propagate it.
     ///
     /// The default implementation does nothing and allows the event to propagate.
-    fn right_mouse_event(&mut self, _window: &Window, _event: MouseEvent) -> bool {
+    fn right_mouse_event(&mut self, window: &Window, event: MouseEvent) -> bool {
         true
     }
     /// Handles a scroll event
@@ -60,13 +141,13 @@ pub trait WindowDelegate: 'static {
     /// Return false to consume the event or true to propagate it.
     ///
     /// The default implementation does nothing and allows the event to propagate.
-    fn scroll_event(&mut self, _window: &Window, _event: ScrollEvent) -> bool {
+    fn scroll_event(&mut self, window: &Window, event: ScrollEvent) -> bool {
         true
     }
     /// Tells X-Plane what cursor to draw over a section of the window
     ///
     /// The default implementation allows X-Plane to draw the default cursor.
-    fn cursor(&mut self, _window: &Window, _position: Point<i32>) -> Cursor {
+    fn cursor(&mut self, window: &Window, position: ScreenPoint) -> Cursor {
         Cursor::Default
     }
 }
@@ -87,6 +168,7 @@ impl Deref for WindowRef {
 /// Defines what layer the window should be positioned in.
 /// The default is to create a floating window.
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
+#[allow(clippy::cast_possible_wrap)]
 pub enum WindowLayer {
     FlightOverlay = xplm_sys::xplm_WindowLayerFlightOverlay as _,
     #[default]
@@ -98,6 +180,7 @@ pub enum WindowLayer {
 /// Defines what decorations should be applied to the window.
 /// The default is to use X-Plane's native rounded window title bar.
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
+#[allow(clippy::cast_possible_wrap)]
 pub enum WindowDecorations {
     None = xplm_sys::xplm_WindowDecorationNone as _,
     #[default]
@@ -107,6 +190,7 @@ pub enum WindowDecorations {
 }
 
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
+#[allow(clippy::cast_possible_wrap)]
 pub enum WindowPositioningMode {
     #[default]
     Free = xplm_sys::xplm_WindowPositionFree as _,
@@ -126,6 +210,8 @@ pub struct Window {
     id: xplm_sys::XPLMWindowID,
     /// The delegate
     delegate: Box<dyn WindowDelegate>,
+    /// Decorations
+    decorations: WindowDecorations,
 }
 
 impl Window {
@@ -133,7 +219,7 @@ impl Window {
     ///
     /// The window is originally not visible.
     #[allow(clippy::new_ret_no_self)]
-    pub fn new<R: Into<Rect<i32>>, D: WindowDelegate>(geometry: R, delegate: D) -> WindowRef {
+    pub fn new<D: WindowDelegate>(geometry: impl Into<ScreenRect>, delegate: D) -> WindowRef {
         Self::new_custom(
             geometry,
             WindowLayer::FloatingWindows,
@@ -141,8 +227,9 @@ impl Window {
             delegate,
         )
     }
-    pub fn new_custom<R: Into<Rect<i32>>, D: WindowDelegate>(
-        geometry: R,
+    #[allow(clippy::cast_possible_wrap, clippy::cast_possible_truncation)]
+    pub fn new_custom<D: WindowDelegate>(
+        geometry: impl Into<ScreenRect>,
         layer: WindowLayer,
         decorations: WindowDecorations,
         delegate: D,
@@ -152,8 +239,9 @@ impl Window {
         let mut window_box = Box::new(Window {
             id: ptr::null_mut(),
             delegate: Box::new(delegate),
+            decorations,
         });
-        let window_ptr: *mut Window = &mut *window_box;
+        let window_ptr: *mut Window = &raw mut *window_box;
 
         let mut window_info = xplm_sys::XPLMCreateWindow_t {
             structSize: mem::size_of::<xplm_sys::XPLMCreateWindow_t>() as _,
@@ -167,32 +255,54 @@ impl Window {
             handleKeyFunc: Some(window_key),
             handleCursorFunc: Some(window_cursor),
             handleMouseWheelFunc: Some(window_scroll),
-            refcon: window_ptr as *mut _,
+            refcon: window_ptr.cast(),
             decorateAsFloatingWindow: decorations as _,
             layer: layer as _,
             handleRightClickFunc: Some(window_right_mouse),
         };
 
-        let window_id = unsafe { xplm_sys::XPLMCreateWindowEx(&mut window_info) };
+        let window_id = unsafe { xplm_sys::XPLMCreateWindowEx(&raw mut window_info) };
         window_box.id = window_id;
 
         WindowRef { window: window_box }
     }
 
-    /// Returns the geometry of this window
-    pub fn geometry(&self) -> Rect<i32> {
+    /// Use `.geometry()` for drawing
+    /// Returns the geometry of this window, with x + 100'000 in the case of a pop-out window
+    #[must_use]
+    pub fn screen_geometry(&self) -> ScreenRect {
         unsafe {
             let mut left = 0;
             let mut top = 0;
             let mut right = 0;
             let mut bottom = 0;
-            xplm_sys::XPLMGetWindowGeometry(self.id, &mut left, &mut top, &mut right, &mut bottom);
-            Rect::from_left_top_right_bottom(left, top, right, bottom)
+            xplm_sys::XPLMGetWindowGeometry(
+                self.id,
+                &raw mut left,
+                &raw mut top,
+                &raw mut right,
+                &raw mut bottom,
+            );
+            let rect = Rect::from_left_top_right_bottom(left, top, right, bottom);
+            if self.decorations == WindowDecorations::RoundRectangle {
+                // round rectangle adds 10px padding, remove.
+                rect.inflate(10, 10)
+            } else {
+                rect
+            }
         }
     }
+
+    /// Returns the geometry of this window's opengl viewport
+    #[must_use]
+    pub fn geometry(&self) -> WindowRect {
+        self.screen_geometry().to_window_space()
+    }
+
     /// Sets the geometry of this window
-    pub fn set_geometry<R: Into<Rect<i32>>>(&self, geometry: R) {
+    pub fn set_geometry(&self, geometry: impl Into<ScreenRect>) {
         let geometry = geometry.into();
+
         unsafe {
             xplm_sys::XPLMSetWindowGeometry(
                 self.id,
@@ -205,13 +315,14 @@ impl Window {
     }
 
     /// Returns true if this window is visible
+    #[must_use]
     pub fn visible(&self) -> bool {
         1 == unsafe { xplm_sys::XPLMGetWindowIsVisible(self.id) }
     }
     /// Sets the window as visible or invisible
     pub fn set_visible(&self, visible: bool) {
         unsafe {
-            xplm_sys::XPLMSetWindowIsVisible(self.id, visible as _);
+            xplm_sys::XPLMSetWindowIsVisible(self.id, visible.into());
         }
     }
     /// Sets the window title, which is shown when using the standard X-Plane decorations.
@@ -229,6 +340,7 @@ impl Window {
         unsafe { xplm_sys::XPLMTakeKeyboardFocus(self.id) };
     }
     /// Returns whether the window current has keyboard focus.
+    #[must_use]
     pub fn has_keyboard_focus(&self) -> bool {
         unsafe { xplm_sys::XPLMHasKeyboardFocus(self.id) != 0 }
     }
@@ -237,19 +349,30 @@ impl Window {
         unsafe { xplm_sys::XPLMBringWindowToFront(self.id) };
     }
     /// Returns whether the window is current at the top of the window stack.
+    #[must_use]
     pub fn is_in_front(&self) -> bool {
         unsafe { xplm_sys::XPLMIsWindowInFront(self.id) != 0 }
     }
-    /// Sets the
-    pub fn set_resizing_limits(&self, min_size: Option<(i32, i32)>, max_size: Option<(i32, i32)>) {
-        let min_size = min_size.unwrap_or((0, 0));
-        // Can't use i32::MAX here for the maximum, because it makes X-Plane spaz out and
-        // resize the window incorrectly. So we'll use some safe backup value like i16::MAX.
-        let max_size = max_size.unwrap_or((i16::MAX as i32, i16::MAX as i32));
+    pub fn set_resizing_limits(
+        &self,
+        min_w: impl Into<Option<i32>>,
+        min_h: impl Into<Option<i32>>,
+        max_w: impl Into<Option<i32>>,
+        max_h: impl Into<Option<i32>>,
+    ) {
+        let min_w = min_w.into().unwrap_or(0).clamp(0, i32::from(i16::MAX));
+        let max_w = max_w
+            .into()
+            .unwrap_or(i32::MAX)
+            .clamp(0, i32::from(i16::MAX));
+        let min_h = min_h.into().unwrap_or(0).clamp(0, i32::from(i16::MAX));
+        let max_h = max_h
+            .into()
+            .unwrap_or(i32::MAX)
+            .clamp(0, i32::from(i16::MAX));
+
         unsafe {
-            xplm_sys::XPLMSetWindowResizingLimits(
-                self.id, min_size.0, min_size.1, max_size.0, max_size.1,
-            );
+            xplm_sys::XPLMSetWindowResizingLimits(self.id, min_w, min_h, max_w, max_h);
         }
     }
     /// Returns the underlying `XPLMWindowID` from XPLM.
@@ -257,8 +380,33 @@ impl Window {
     /// # Safety
     /// The window will be destroyed when this `Window` struct is dropped, so the caller must
     /// take care not to use to the returned `XPLMWindowID` pointer afterwards.
+    #[must_use]
     pub unsafe fn id(&self) -> xplm_sys::XPLMWindowID {
         self.id
+    }
+
+    /// A window's "gravity" controls how the window shifts as the whole X-Plane
+    /// window resizes. A gravity of 1 means the window maintains its positioning
+    /// relative to the right or top edges, 0 the left/bottom, and 0.5 keeps it
+    /// centered.
+    ///
+    /// Default gravity is (0, 1, 0, 1), meaning your window will maintain its
+    /// position relative to the top left and will not change size as its
+    /// containing window grows.
+    ///
+    /// If you wanted, say, a window that sticks to the top of the screen (with a
+    /// constant height), but which grows to take the full width of the window, you
+    /// would pass (0, 1, 1, 1). Because your left and right edges would maintain
+    /// their positioning relative to their respective edges of the screen, the
+    /// whole width of your window would change with the X-Plane window.
+    ///
+    /// Only applies to modern windows. (Windows created using the deprecated
+    /// XPLMCreateWindow(), or windows compiled against a pre-XPLM300 version of
+    /// the SDK will simply get the default gravity.)
+    pub fn set_gravity(&self, left: f32, top: f32, right: f32, bottom: f32) {
+        unsafe {
+            XPLMSetWindowGravity(self.id(), left, top, right, bottom);
+        }
     }
 }
 
@@ -271,13 +419,15 @@ impl Drop for Window {
 }
 
 /// Callback in which windows are drawn
-unsafe extern "C" fn window_draw(_window: xplm_sys::XPLMWindowID, refcon: *mut c_void) {
-    let window = refcon as *mut Window;
-    (*window).delegate.draw(&*window);
+extern "C" fn window_draw(_window: xplm_sys::XPLMWindowID, refcon: *mut c_void) {
+    unsafe {
+        let window = refcon.cast::<Window>();
+        (*window).delegate.draw(&*window);
+    }
 }
 
 /// Keyboard callback
-unsafe extern "C" fn window_key(
+extern "C" fn window_key(
     _window: xplm_sys::XPLMWindowID,
     key: c_char,
     flags: xplm_sys::XPLMKeyFlags,
@@ -285,28 +435,30 @@ unsafe extern "C" fn window_key(
     refcon: *mut c_void,
     losing_focus: c_int,
 ) {
-    let window = refcon as *mut Window;
-    if losing_focus == 0 {
-        match KeyEvent::from_xplm(key, flags, virtual_key) {
-            Ok(event) => (*window).delegate.keyboard_event(&*window, event),
-            Err(e) => super::debugln!("Invalid key event received: {:?}", e),
+    unsafe {
+        let window = refcon.cast::<Window>();
+        if losing_focus == 0 {
+            match KeyEvent::from_xplm(key, flags, virtual_key) {
+                Ok(event) => (*window).delegate.keyboard_event(&*window, event),
+                Err(e) => super::debugln!("Invalid key event received: {:?}", e),
+            }
         }
     }
 }
 
 /// Mouse callback
-unsafe extern "C" fn window_mouse(
+extern "C" fn window_mouse(
     _window: xplm_sys::XPLMWindowID,
     x: c_int,
     y: c_int,
     status: xplm_sys::XPLMMouseStatus,
     refcon: *mut c_void,
 ) -> c_int {
-    let window = refcon as *mut Window;
+    let window = refcon.cast::<Window>();
     if let Some(action) = MouseAction::from_xplm(status) {
-        let position = Point::from((x, y));
+        let position = point2(x, y);
         let event = MouseEvent::new(position, action);
-        !(*window).delegate.mouse_event(&*window, event) as c_int
+        unsafe { c_int::from(!(*window).delegate.mouse_event(&*window, event)) }
     } else {
         // Propagate
         0
@@ -314,18 +466,18 @@ unsafe extern "C" fn window_mouse(
 }
 
 /// Right-mouse callback
-unsafe extern "C" fn window_right_mouse(
+extern "C" fn window_right_mouse(
     _window: xplm_sys::XPLMWindowID,
     x: c_int,
     y: c_int,
     status: xplm_sys::XPLMMouseStatus,
     refcon: *mut c_void,
 ) -> c_int {
-    let window = refcon as *mut Window;
+    let window = refcon.cast::<Window>();
     if let Some(action) = MouseAction::from_xplm(status) {
-        let position = Point::from((x, y));
+        let position = point2(x, y);
         let event = MouseEvent::new(position, action);
-        !(*window).delegate.right_mouse_event(&*window, event) as c_int
+        unsafe { c_int::from(!(*window).delegate.right_mouse_event(&*window, event)) }
     } else {
         // Propagate
         0
@@ -333,19 +485,19 @@ unsafe extern "C" fn window_right_mouse(
 }
 
 /// Cursor callback
-unsafe extern "C" fn window_cursor(
+extern "C" fn window_cursor(
     _window: xplm_sys::XPLMWindowID,
     x: c_int,
     y: c_int,
     refcon: *mut c_void,
 ) -> xplm_sys::XPLMCursorStatus {
-    let window = refcon as *mut Window;
-    let cursor = (*window).delegate.cursor(&*window, Point::from((x, y)));
-    cursor.as_xplm()
+    let window = refcon.cast::<Window>();
+    let cursor = unsafe { (*window).delegate.cursor(&*window, point2(x, y)) };
+    cursor as i32
 }
 
 /// Scroll callback
-unsafe extern "C" fn window_scroll(
+extern "C" fn window_scroll(
     _window: xplm_sys::XPLMWindowID,
     x: c_int,
     y: c_int,
@@ -353,9 +505,9 @@ unsafe extern "C" fn window_scroll(
     clicks: c_int,
     refcon: *mut c_void,
 ) -> c_int {
-    let window = refcon as *mut Window;
+    let window = refcon.cast::<Window>();
 
-    let position = Point::from((x, y));
+    let position = point2(x, y);
     let (dx, dy) = if wheel == 1 {
         // Horizontal
         (clicks, 0)
@@ -365,12 +517,8 @@ unsafe extern "C" fn window_scroll(
     };
     let event = ScrollEvent::new(position, dx, dy);
 
-    let propagate = (*window).delegate.scroll_event(&*window, event);
-    if propagate {
-        0
-    } else {
-        1
-    }
+    let propagate = unsafe { (*window).delegate.scroll_event(&*window, event) };
+    i32::from(!propagate)
 }
 
 /// Key actions
@@ -519,6 +667,14 @@ pub enum Key {
     NumpadEqual,
 }
 
+impl std::fmt::Display for Key {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let dbg = format!("{self:?}");
+        write!(f, "{}", dbg.strip_prefix("Key::").unwrap_or(&dbg))
+    }
+}
+
+#[allow(clippy::cast_sign_loss, clippy::too_many_lines)]
 impl Key {
     /// Converts an XPLM virtual key code into a Key
     fn from_xplm(virtual_key: c_char) -> Option<Self> {
@@ -671,21 +827,21 @@ impl KeyEvent {
         flags: xplm_sys::XPLMKeyFlags,
         virtual_key: c_char,
     ) -> Result<Self, KeyEventError> {
-        let basic_char = match key as u8 {
+        let basic_char = match key.cast_unsigned() {
             // Accept printable characters, including spaces and tabs
-            b'\t' | b' '..=b'~' => Some(key as u8 as char),
+            b'\t' | b' '..=b'~' => Some(key.cast_unsigned() as char),
             _ => None,
         };
-        let action = if flags & xplm_sys::xplm_DownFlag as ::xplm_sys::XPLMKeyFlags != 0 {
+        let action = if flags & xplm_sys::xplm_DownFlag.cast_signed() != 0 {
             KeyAction::Press
-        } else if flags & xplm_sys::xplm_UpFlag as ::xplm_sys::XPLMKeyFlags != 0 {
+        } else if flags & xplm_sys::xplm_UpFlag.cast_signed() != 0 {
             KeyAction::Release
         } else {
             return Err(KeyEventError::InvalidFlags(flags));
         };
-        let control_pressed = flags & xplm_sys::xplm_ControlFlag as ::xplm_sys::XPLMKeyFlags != 0;
-        let shift_pressed = flags & xplm_sys::xplm_ShiftFlag as ::xplm_sys::XPLMKeyFlags != 0;
-        let option_pressed = flags & xplm_sys::xplm_OptionAltFlag as ::xplm_sys::XPLMKeyFlags != 0;
+        let control_pressed = flags & xplm_sys::xplm_ControlFlag.cast_signed() != 0;
+        let shift_pressed = flags & xplm_sys::xplm_ShiftFlag.cast_signed() != 0;
+        let option_pressed = flags & xplm_sys::xplm_OptionAltFlag.cast_signed() != 0;
         let key = match Key::from_xplm(virtual_key) {
             Some(key) => key,
             // some keys (notably period on the main keyboard) don't have virtual keys
@@ -708,26 +864,32 @@ impl KeyEvent {
     ///
     /// Some key combinations, including combinations with non-Shift modifiers, may not have
     /// corresponding characters.
+    #[must_use]
     pub fn char(&self) -> Option<char> {
         self.basic_char
     }
     /// Returns the key associated with this event
+    #[must_use]
     pub fn key(&self) -> Key {
         self.key.clone()
     }
     /// Returns true if the control key was held down when the action occurred
+    #[must_use]
     pub fn control_pressed(&self) -> bool {
         self.control_pressed
     }
     /// Returns true if the option/alt key was held down when the action occurred
+    #[must_use]
     pub fn option_pressed(&self) -> bool {
         self.option_pressed
     }
     /// Returns true if a shift key was held down when the action occurred
+    #[must_use]
     pub fn shift_pressed(&self) -> bool {
         self.shift_pressed
     }
     /// Returns the key action that occurred
+    #[must_use]
     pub fn action(&self) -> KeyAction {
         self.action.clone()
     }
@@ -744,7 +906,7 @@ enum KeyEventError {
 }
 
 /// Actions that the mouse/cursor can perform
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum MouseAction {
     /// The user pressed the mouse button down
     Down,
@@ -756,11 +918,11 @@ pub enum MouseAction {
 
 impl MouseAction {
     fn from_xplm(status: xplm_sys::XPLMMouseStatus) -> Option<MouseAction> {
-        if status == xplm_sys::xplm_MouseDown as xplm_sys::XPLMMouseStatus {
+        if status == xplm_sys::xplm_MouseDown.cast_signed() {
             Some(MouseAction::Down)
-        } else if status == xplm_sys::xplm_MouseDrag as xplm_sys::XPLMMouseStatus {
+        } else if status == xplm_sys::xplm_MouseDrag.cast_signed() {
             Some(MouseAction::Drag)
-        } else if status == xplm_sys::xplm_MouseUp as xplm_sys::XPLMMouseStatus {
+        } else if status == xplm_sys::xplm_MouseUp.cast_signed() {
             Some(MouseAction::Up)
         } else {
             None
@@ -769,27 +931,29 @@ impl MouseAction {
 }
 
 /// A mouse event
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct MouseEvent {
     /// The position of the mouse, in global window coordinates
-    position: Point<i32>,
+    position: ScreenPoint,
     /// The action of the mouse
     action: MouseAction,
 }
 
 impl MouseEvent {
     /// Creates a new event
-    fn new(position: Point<i32>, action: MouseAction) -> Self {
+    fn new(position: ScreenPoint, action: MouseAction) -> Self {
         MouseEvent { position, action }
     }
     /// Returns the position of the mouse, in global coordinates relative to the X-Plane
     /// main window
-    pub fn position(&self) -> Point<i32> {
+    #[must_use]
+    pub fn position(&self) -> ScreenPoint {
         self.position
     }
     /// Returns the action that the user performed with the mouse
+    #[must_use]
     pub fn action(&self) -> MouseAction {
-        self.action.clone()
+        self.action
     }
 }
 
@@ -797,7 +961,7 @@ impl MouseEvent {
 #[derive(Debug, Clone)]
 pub struct ScrollEvent {
     /// The position of the mouse, in global window coordinates
-    position: Point<i32>,
+    position: ScreenPoint,
     /// The amount of scroll in the X direction
     scroll_x: i32,
     /// The amount of scroll in the Y direction
@@ -806,7 +970,7 @@ pub struct ScrollEvent {
 
 impl ScrollEvent {
     /// Creates a new event
-    fn new(position: Point<i32>, scroll_x: i32, scroll_y: i32) -> Self {
+    fn new(position: ScreenPoint, scroll_x: i32, scroll_y: i32) -> Self {
         ScrollEvent {
             position,
             scroll_x,
@@ -815,14 +979,17 @@ impl ScrollEvent {
     }
     /// Returns the position of the mouse, in global coordinates relative to the X-Plane
     /// main window
-    pub fn position(&self) -> Point<i32> {
+    #[must_use]
+    pub fn position(&self) -> ScreenPoint {
         self.position
     }
     /// Returns the amount of scroll in the X direction
+    #[must_use]
     pub fn scroll_x(&self) -> i32 {
         self.scroll_x
     }
     /// Returns the amount of scroll in the Y direction
+    #[must_use]
     pub fn scroll_y(&self) -> i32 {
         self.scroll_y
     }

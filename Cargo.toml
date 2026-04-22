@@ -1,22 +1,36 @@
 [package]
-authors = ["Sam Crow <samcrow@uw.edu>", "Sašo Kiselkov <saso@hotstart.net>"]
-name = "xplm"
-version = "0.4.6"
+authors = [
+  "Sam Crow <samcrow@uw.edu>",
+  "Sašo Kiselkov <saso@hotstart.net>",
+  "pcaracal",
+]
+name = "xplm-egui"
+version = "0.5.0"
 license = "MIT/Apache-2.0"
-repository = "https://git.hotstart.net/skiselkov/rust-xplm"
-keywords = ["X-Plane", "plugin"]
-description = "High-level interfaces to the X-Plane plugin SDK"
+repository = "https://github.com/pcaracal/xplm-egui"
+keywords = ["X-Plane", "plugin", "egui"]
+description = "High-level interfaces to the X-Plane plugin SDK, plus egui"
 readme = "README.md"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
-xplm-sys = "0.5.0"
-thiserror = "1.0.*"
-num = { version = "0.4.*", optional = true }
-uom = { version = "0.37.*", optional = true }
+xplm-sys = { git = "https://github.com/pcaracal/xplm-sys.git" }
+bytemuck = "1.25.0"
+egui = { version = "0.34.1", features = ["bytemuck"] }
+euclid = "0.22.14"
+gl_loader = "0.1.2"
+glow = "0.17.0"
+log = "0.4.29"
+memoffset = "0.9.1"
+num = { version = "0.4.3", optional = true }
+pastey = "0.2.1"
+thiserror = "2.0.18"
+uom = { version = "0.38.0", optional = true }
+anyhow = "1.0.102"
 
 [dev-dependencies]
-derive_more = { version = "2.1.0", features = ["try_from"] }
+derive_more = { version = "2.1.1", features = ["try_from"] }
+simplelog = "0.12.2"
 
 [features]
 uom_conv = ["uom", "num"]
@@ -28,6 +42,10 @@ lto = true
 incremental = true
 codegen-units = 1
 strip = "symbols"
+
+[[example]]
+name = "egui"
+crate-type = ["cdylib"]
 
 [[example]]
 name = "minimal"

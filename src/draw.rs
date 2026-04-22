@@ -1,4 +1,4 @@
-use std::os::raw::*;
+use std::os::raw::{c_int, c_void};
 use xplm_sys;
 
 /// A callback that can be called while X-Plane draws graphics
@@ -12,7 +12,7 @@ where
     F: 'static + FnMut(),
 {
     fn draw(&mut self) {
-        self()
+        self();
     }
 }
 
@@ -33,7 +33,7 @@ impl Draw {
     pub fn new<C: DrawCallback>(phase: Phase, callback: C) -> Result<Self, Error> {
         let xplm_phase = phase.to_xplm();
         let callback_box = Box::new(callback);
-        let callback_ptr: *const _ = &*callback_box;
+        let callback_ptr: *const _ = &raw const *callback_box;
         let status = unsafe {
             xplm_sys::XPLMRegisterDrawCallback(
                 Some(draw_callback::<C>),
@@ -68,13 +68,15 @@ impl Drop for Draw {
 /// The draw callback provided to X-Plane
 ///
 /// This is instantiated separately for each callback type.
-unsafe extern "C" fn draw_callback<C: DrawCallback>(
+extern "C" fn draw_callback<C: DrawCallback>(
     _phase: xplm_sys::XPLMDrawingPhase,
     _before: c_int,
     refcon: *mut c_void,
 ) -> c_int {
-    let callback_ptr = refcon as *mut C;
-    (*callback_ptr).draw();
+    let callback_ptr = refcon.cast::<C>();
+    unsafe {
+        (*callback_ptr).draw();
+    }
     // Always allow X-Plane to draw
     1
 }
@@ -99,17 +101,16 @@ pub enum Phase {
 
 impl Phase {
     /// Converts this phase into an XPLMDrawingPhase and a 0 for after or 1 for before
-    fn to_xplm(&self) -> xplm_sys::XPLMDrawingPhase {
-        use self::Phase::*;
-        let phase = match *self {
-            AfterPanel => xplm_sys::xplm_Phase_Panel,
-            AfterGauges => xplm_sys::xplm_Phase_Gauges,
-            AfterWindows => xplm_sys::xplm_Phase_Window,
-            AfterLocalMap2D => xplm_sys::xplm_Phase_LocalMap2D,
-            AfterLocalMap3D => xplm_sys::xplm_Phase_LocalMap3D,
-            AfterLocalMapProfile => xplm_sys::xplm_Phase_LocalMapProfile,
+    fn to_xplm(self) -> xplm_sys::XPLMDrawingPhase {
+        let phase = match self {
+            Self::AfterPanel => xplm_sys::xplm_Phase_Panel,
+            Self::AfterGauges => xplm_sys::xplm_Phase_Gauges,
+            Self::AfterWindows => xplm_sys::xplm_Phase_Window,
+            Self::AfterLocalMap2D => xplm_sys::xplm_Phase_LocalMap2D,
+            Self::AfterLocalMap3D => xplm_sys::xplm_Phase_LocalMap3D,
+            Self::AfterLocalMapProfile => xplm_sys::xplm_Phase_LocalMapProfile,
         };
-        phase as xplm_sys::XPLMDrawingPhase
+        phase.cast_signed()
     }
 }
 
@@ -122,7 +123,8 @@ pub enum Error {
 }
 
 /// Stores various flags that can be enabled or disabled
-#[derive(Debug, Clone)]
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct GraphicsState {
     /// Enable status of fog
     ///
@@ -144,17 +146,77 @@ pub struct GraphicsState {
     pub textures: i32,
 }
 
+impl GraphicsState {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn apply(&self) {
+        set_state(self);
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn fog(mut self, enabled: bool) -> Self {
+        self.fog = enabled;
+        self
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn lighting(mut self, enabled: bool) -> Self {
+        self.lighting = enabled;
+        self
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn alpha_testing(mut self, enabled: bool) -> Self {
+        self.alpha_testing = enabled;
+        self
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn alpha_blending(mut self, enabled: bool) -> Self {
+        self.alpha_blending = enabled;
+        self
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn depth_testing(mut self, enabled: bool) -> Self {
+        self.depth_testing = enabled;
+        self
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn depth_writing(mut self, enabled: bool) -> Self {
+        self.depth_writing = enabled;
+        self
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn textures(mut self, count: i32) -> Self {
+        self.textures = count;
+        self
+    }
+}
+
 /// Sets the graphics state
 pub fn set_state(state: &GraphicsState) {
     unsafe {
         xplm_sys::XPLMSetGraphicsState(
-            state.fog as i32,
+            i32::from(state.fog),
             state.textures,
-            state.lighting as i32,
-            state.alpha_testing as i32,
-            state.alpha_blending as i32,
-            state.depth_testing as i32,
-            state.depth_writing as i32,
+            i32::from(state.lighting),
+            i32::from(state.alpha_testing),
+            i32::from(state.alpha_blending),
+            i32::from(state.depth_testing),
+            i32::from(state.depth_writing),
         );
     }
 }
@@ -174,11 +236,12 @@ pub fn bind_texture(texture_number: i32, texture_id: i32) {
 ///
 /// Texture IDs are placed in the provided slice. If the slice contains more than i32::max_value()
 /// elements, no more than i32::max_value() texture IDs will be generated.
+#[allow(clippy::cast_possible_wrap, clippy::cast_possible_truncation)]
 pub fn generate_texture_numbers(numbers: &mut [i32]) {
-    let count = if numbers.len() < (i32::max_value() as usize) {
+    let count = if numbers.len() < (i32::MAX as usize) {
         numbers.len() as i32
     } else {
-        i32::max_value()
+        i32::MAX
     };
     unsafe {
         xplm_sys::XPLMGenerateTextureNumbers(numbers.as_mut_ptr(), count);
@@ -190,6 +253,7 @@ pub fn generate_texture_numbers(numbers: &mut [i32]) {
 ///
 /// See generate_texture_numbers for more detail.
 ///
+#[must_use]
 pub fn generate_texture_number() -> i32 {
     let number = 0;
     generate_texture_numbers(&mut [number]);

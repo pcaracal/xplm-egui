@@ -1,16 +1,19 @@
-# X-Plane plugin APIs for Rust
+# X-Plane plugin APIs for Rust + egui
 
-[![Crates.io Version](https://img.shields.io/crates/v/xplm.svg)](https://crates.io/crates/xplm)
-[![Documentation](https://docs.rs/xplm/badge.svg)](https://docs.rs/xplm)
-[![License](https://img.shields.io/crates/l/xplm.svg)](https://github.com/samcrow/rust-xplm#license)
+[![License](https://img.shields.io/crates/l/xplm.svg)](https://github.com/pcaracal/xplm-egui#license)
 
 ## Purpose
 
 **Rust XPLM** provides a convenient interface for X-Plane plugin development in the Rust programming language for all
 platforms.
 
-As we use the [X-Plane SDK](https://developer.x-plane.com/sdk/) version 3.0, any plugin created with this library
-supports X-Plane version 11.10 or later.
+As we use the [X-Plane SDK](https://developer.x-plane.com/sdk/) version 4.3.0, any plugin created with this library
+supports X-Plane version 12.4 or later. (other versions may work but not tested)
+
+### [egui](https://github.com/emilk/egui): an easy-to-use GUI in pure Rust
+
+Instead of using X-Plane's native gui system, plugins created with this library can build their gui with egui.
+See `examples/egui.rs` for an example plugin using egui.
 
 ## Status
 
@@ -23,6 +26,7 @@ completely.
 - [x] Commands
 - [ ] GUI - Needs further work
 - [ ] Drawing - Needs further work
+- [x] egui - Simple ui works, needs further work (rendering callbacks, custom textures)
 
 ## Example
 
@@ -64,7 +68,7 @@ xplane_plugin!(MinimalPlugin);
 ```bash
 cargo new --lib my-rxplm-project
 cd my-rxplm-project
-cargo add xplm
+cargo add --git https://github.com/pcaracal/xplm-egui.git
 ```
 
 Then add to `Cargo.toml`:
@@ -78,7 +82,7 @@ Copy minimal example from above into `src/lib.rs`
 
 `cargo build`
 
-Rename `target/debug/my_rxplm_project.dll` to `win.xpl` (or `my_rxplm_project.so` to `lin.xpl`, etc) and copy to the aircraft/scenery/sim plugins folder
+Rename `target/debug/my_rxplm_project.so` to `lin.xpl` (or `my_rxplm_project.dll` to `win.xpl`, etc) and copy to `X-Plane 12/Resources/plugins/my_rxplm_project/64/lin.xpl`
 
 ## Cross-compiling
 
@@ -88,8 +92,8 @@ The [cross](https://github.com/cross-rs/cross) tool may help compile plugins for
 
 Licensed under either of
 
-* Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
-* MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
 
 at your option.
 

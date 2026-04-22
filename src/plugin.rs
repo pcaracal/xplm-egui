@@ -1,5 +1,7 @@
 use std::os::raw::c_void;
 
+use crate::plugin::messages::Message;
+
 /// Accessing and communicating with other plugins
 pub mod management;
 
@@ -20,10 +22,24 @@ pub struct PluginInfo {
     pub description: String,
 }
 
+impl PluginInfo {
+    pub fn new(
+        name: impl Into<String>,
+        signature: impl Into<String>,
+        description: impl Into<String>,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            signature: signature.into(),
+            description: description.into(),
+        }
+    }
+}
+
 /// The trait that all plugins should implement
 pub trait Plugin: Sized {
     /// The error type that a plugin may encounter when starting up or enabling
-    type Error: std::error::Error;
+    type Error: std::fmt::Display;
 
     /// Called when X-Plane loads this plugin
     ///
@@ -49,5 +65,9 @@ pub trait Plugin: Sized {
     /// Called when the plugin receives a message
     ///
     /// The default implementation does nothing.
-    fn receive_message(&mut self, from: i32, message: i32, param: *mut c_void) {}
+    fn receive_message(&mut self, from: i32, message: Message, param: *mut c_void) {}
+}
+
+pub fn reload_plugins() {
+    unsafe { xplm_sys::XPLMReloadPlugins() }
 }

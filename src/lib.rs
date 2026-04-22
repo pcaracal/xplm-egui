@@ -1,3 +1,4 @@
+#![allow(clippy::doc_markdown, clippy::missing_errors_doc)]
 #![deny(trivial_casts)]
 
 //! Bindings to the X-Plane plugin SDK
@@ -9,6 +10,10 @@
 //!   [`crate::data::validated::validator`]. This adds a dependency on the [`num`] crate.
 
 extern crate xplm_sys;
+#[macro_use]
+extern crate log;
+#[macro_use]
+extern crate anyhow;
 
 use std::ffi::CString;
 
@@ -30,8 +35,12 @@ pub mod test_stubs;
 pub mod command;
 /// Datarefs
 pub mod data;
+/// Display management
+pub mod display;
 /// Low-level drawing callbacks
 pub mod draw;
+/// Egui integration
+pub mod egui_window;
 /// Error detection
 pub mod error;
 /// SDK feature management
@@ -60,7 +69,7 @@ pub fn debug<S: Into<String>>(message: S) {
     match CString::new(message.into()) {
         Ok(message_c) => unsafe { XPLMDebugString(message_c.as_ptr()) },
         Err(_) => unsafe {
-            XPLMDebugString("[xplm] Invalid debug message\n\0".as_ptr() as *const _)
+            XPLMDebugString(c"[xplm] Invalid debug message\n".as_ptr().cast());
         },
     }
 }
@@ -94,7 +103,7 @@ macro_rules! debugln {
         #[allow(unused_unsafe)] // Disable unnecessary unsafe block warning when embedded in unsafe function
         match std::ffi::CString::new(formatted_string) {
             Ok(c_str) => unsafe { $crate::XPLMDebugString(c_str.as_ptr()) },
-            Err(_) => unsafe { $crate::XPLMDebugString("[xplm] Invalid debug message\n\0".as_ptr() as *const _) }
+            Err(_) => unsafe { $crate::XPLMDebugString("[xplm] Invalid debug message\n\0".as_ptr().cast()) }
         }
     });
 }
@@ -115,7 +124,7 @@ pub fn speak<S: Into<String>>(msg: S) {
             xplm_sys::XPLMSpeakString(msg.as_ptr());
         },
         Err(_) => unsafe {
-            crate::XPLMDebugString("[xplm] Invalid speak message\n\0".as_ptr() as *const _)
+            crate::XPLMDebugString(c"[xplm] Invalid speak message\n".as_ptr().cast());
         },
     }
 }

@@ -1,128 +1,97 @@
-//!
-//! User interface geometry
-//!
-//! The 2D coordinate system in X-Plane has its origin in the lower left corner of the window.
-//! Its units are pixels. [More information about X-Plane's coordinate systems is available here]
-//! (http://www.xsquawkbox.net/xpsdk/mediawiki/ScreenCoordinates)
-//!
+use euclid::{Point2D, Rect, Size2D, point2, size2, vec2};
 
-/// A 2-dimensional rectangle
-#[derive(Debug, Copy, Clone)]
-pub struct Rect<N> {
-    /// The top coordinate
-    top: N,
-    /// The bottom coordinate
-    bottom: N,
-    /// The left coordinate
-    left: N,
-    /// The right coordinate
-    right: N,
+/// X-Plane screen space in pixels
+/// Origin is the bottom left corner of the main X-Plane OpenGL window at (0, 0)
+///
+/// Shouldn't be used when working with windows, since pop-out windows special
+pub struct XPScreenSpace;
+
+/// X-Plane window space in pixels
+/// Origin is the bottom left corner of the window's drawable area at (0, 0)
+pub struct XPWindowSpace;
+
+pub type ScreenRect = Rect<i32, XPScreenSpace>;
+/// Size is the same for screen, window and egui coordinate spaces. This is just for convenience
+pub type ScreenSize = Size2D<i32, XPScreenSpace>;
+pub type ScreenPoint = Point2D<i32, XPScreenSpace>;
+
+pub type WindowRect = Rect<i32, XPWindowSpace>;
+pub type WindowPoint = Point2D<i32, XPWindowSpace>;
+
+pub trait RectExt<T, U> {
+    fn from_left_top_right_bottom(left: T, top: T, right: T, bottom: T) -> Rect<T, U>;
+    fn left(&self) -> T;
+    fn top(&self) -> T;
+    fn right(&self) -> T;
+    fn bottom(&self) -> T;
+    fn to_window_space(&self) -> Rect<T, XPWindowSpace>;
 }
 
-impl<N> Rect<N> {
-    /// Creates a rectangle from left, top, right, and bottom coordinates
-    pub fn from_left_top_right_bottom(left: N, top: N, right: N, bottom: N) -> Self {
-        Rect {
-            top,
-            bottom,
-            left,
-            right,
+impl<U> RectExt<i32, U> for Rect<i32, U> {
+    fn from_left_top_right_bottom(left: i32, top: i32, right: i32, bottom: i32) -> Rect<i32, U> {
+        Rect::new(point2(left, bottom), size2(right - left, top - bottom))
+    }
+    fn left(&self) -> i32 {
+        self.min_x()
+    }
+    fn top(&self) -> i32 {
+        self.max_y()
+    }
+    fn right(&self) -> i32 {
+        self.max_x()
+    }
+    fn bottom(&self) -> i32 {
+        self.min_y()
+    }
+    fn to_window_space(&self) -> Rect<i32, XPWindowSpace> {
+        if self.left() >= 100_000 {
+            self.translate(vec2(-100_000, 0)).cast_unit()
+        } else {
+            self.cast_unit()
         }
     }
-    /// Creates a rectangle from a top left corner and a bottom right corner
-    pub fn from_corners(top_left: Point<N>, bottom_right: Point<N>) -> Self {
-        let (left, top) = top_left.into_xy();
-        let (bottom, right) = bottom_right.into_xy();
-        Rect {
-            top,
-            bottom,
-            left,
-            right,
+}
+
+pub trait PointExt<T, U> {
+    fn to_window_space(&self) -> WindowPoint;
+    fn to_egui(&self, rect: Rect<T, U>) -> egui::Pos2;
+}
+
+impl PointExt<i32, XPScreenSpace> for ScreenPoint {
+    fn to_window_space(&self) -> WindowPoint {
+        if self.x >= 100_000 {
+            (*self - vec2(100_000, 0)).cast_unit()
+        } else {
+            self.cast_unit()
         }
     }
-    /// Consumes this rectangle and returns its left, top, bottom, and right coordinates
-    pub fn into_left_top_bottom_right(self) -> (N, N, N, N) {
-        (self.left, self.top, self.bottom, self.right)
-    }
 
-    pub fn set_top(&mut self, top: N) {
-        self.top = top;
-    }
-    pub fn set_left(&mut self, left: N) {
-        self.left = left;
-    }
-    pub fn set_bottom(&mut self, bottom: N) {
-        self.bottom = bottom;
-    }
-    pub fn set_right(&mut self, right: N) {
-        self.right = right;
-    }
-
-    /// Determines whether this rectangle contains a point
-    ///
-    /// For this calculation, the bottom and left edges are inside the rectangle, while the
-    /// top and right edges are outside.
-    pub fn contains(&self, point: Point<N>) -> bool
-    where
-        N: PartialOrd,
-    {
-        let (x, y) = point.into_xy();
-        x >= self.left && x < self.right && y >= self.bottom && y < self.top
+    fn to_egui(&self, rect: ScreenRect) -> egui::Pos2 {
+        self.to_window_space().to_egui(rect.to_window_space())
     }
 }
 
-impl<N: Clone> Rect<N> {
-    pub fn top(&self) -> N {
-        self.top.clone()
+impl PointExt<i32, XPWindowSpace> for WindowPoint {
+    fn to_window_space(&self) -> WindowPoint {
+        *self
     }
-    pub fn bottom(&self) -> N {
-        self.bottom.clone()
-    }
-    pub fn left(&self) -> N {
-        self.left.clone()
-    }
-    pub fn right(&self) -> N {
-        self.right.clone()
+    #[allow(clippy::cast_precision_loss)]
+    fn to_egui(&self, rect: WindowRect) -> egui::Pos2 {
+        let x = self.x - rect.left();
+        let y = self.y - rect.bottom();
+        let y = rect.height() - y;
+
+        egui::pos2(x as f32, y as f32)
     }
 }
 
-/// A 2D point
-#[derive(Debug, Copy, Clone)]
-pub struct Point<N> {
-    /// The X coordinate
-    x: N,
-    /// The Y coordinate
-    y: N,
+pub trait SizeExt<T> {
+    fn to_egui(&self) -> egui::Vec2;
 }
 
-impl<N> Point<N> {
-    /// Creates a point from X and Y coordinates
-    pub fn from_xy(x: N, y: N) -> Self {
-        Point { x, y }
-    }
-    pub fn set_x(&mut self, x: N) {
-        self.x = x;
-    }
-    pub fn set_y(&mut self, y: N) {
-        self.y = y;
-    }
-    pub fn into_xy(self) -> (N, N) {
-        (self.x, self.y)
-    }
-}
-
-impl<N: Clone> Point<N> {
-    pub fn x(&self) -> N {
-        self.x.clone()
-    }
-    pub fn y(&self) -> N {
-        self.y.clone()
-    }
-}
-
-impl<N> From<(N, N)> for Point<N> {
-    /// Converts an (x, y) pair into a point
-    fn from((x, y): (N, N)) -> Self {
-        Point::from_xy(x, y)
+impl<U> SizeExt<U> for Size2D<i32, U> {
+    fn to_egui(&self) -> egui::Vec2 {
+        #[allow(clippy::cast_precision_loss)]
+        egui::vec2(self.width as f32, self.height as f32)
     }
 }
