@@ -22,9 +22,9 @@ pub(super) struct EguiWindowContext {
 }
 
 impl EguiWindowContext {
-    pub(super) fn new(app: impl App) -> anyhow::Result<Self> {
+    pub(super) fn new(app: Box<dyn App>) -> anyhow::Result<Self> {
         Ok(Self {
-            app: Box::new(app),
+            app,
             start: Instant::now(),
             viewport: WindowRect::default(),
             painter: Painter::new()?,
