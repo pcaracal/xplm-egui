@@ -34,6 +34,7 @@ pub struct Painter {
     supports_srgb_framebuffer: bool,
     max_texture_side: usize,
     xp_texture_id: i32,
+    last_texture: i32,
 
     destroyed: bool,
 }
@@ -77,6 +78,7 @@ impl Painter {
             supports_srgb_framebuffer,
             max_texture_side,
             xp_texture_id: 0,
+            last_texture: 0,
             destroyed: false,
         };
 
@@ -187,7 +189,7 @@ impl Painter {
         Ok(())
     }
 
-    fn bind_texture(&self) {
+    fn bind_texture(&mut self) {
         unsafe {
             xplm_sys::XPLMBindTexture2d(self.xp_texture_id, 0);
         }

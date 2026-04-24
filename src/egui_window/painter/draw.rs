@@ -1,5 +1,7 @@
+use std::num::NonZeroU32;
+
 use egui::{ClippedPrimitive, epaint::Primitive};
-use glow::HasContext;
+use glow::{HasContext, NativeTexture};
 
 use crate::geometry::RectExt;
 
@@ -10,7 +12,8 @@ impl super::Painter {
             self.gl.enable(glow::SCISSOR_TEST);
             // xplane does not like counter clockwise winding order, but egui needs it
             self.gl.disable(glow::CULL_FACE);
-            self.gl.disable(glow::DEPTH_TEST);
+
+            self.last_texture = self.gl.get_parameter_i32(glow::TEXTURE_BINDING_2D);
 
             self.gl
                 .get_parameter_i32_slice(glow::VIEWPORT, &mut self.old_viewport);
@@ -23,7 +26,15 @@ impl super::Painter {
 
             self.gl.color_mask(true, true, true, true);
 
-            self.gl.enable(glow::BLEND);
+            self.gl.scissor(
+                self.viewport.left(),
+                self.viewport.bottom(),
+                self.viewport.width(),
+                self.viewport.height(),
+            );
+            self.gl.clear_color(0.0, 0.0, 0.0, 0.0);
+            self.gl.clear(glow::COLOR_BUFFER_BIT);
+
             self.gl
                 .blend_equation_separate(glow::FUNC_ADD, glow::FUNC_ADD);
             // egui uses premultiplied alpha
@@ -46,7 +57,7 @@ impl super::Painter {
                 self.viewport.height() as f32,
             );
             self.gl.uniform_1_i32(self.u_sampler.as_ref(), 0);
-            self.gl.active_texture(glow::TEXTURE0);
+            self.bind_texture();
         }
 
         crate::check_for_gl_error!(&self.gl, "prepare");
@@ -116,6 +127,13 @@ impl super::Painter {
 
     pub(super) fn cleanup(&mut self) {
         unsafe {
+            self.gl.bind_texture(
+                glow::TEXTURE_2D,
+                NonZeroU32::new(self.last_texture.cast_unsigned()).map(NativeTexture),
+            );
+            self.gl.disable_vertex_attrib_array(0);
+            self.gl.disable_vertex_attrib_array(1);
+            self.gl.disable_vertex_attrib_array(2);
             self.gl.bind_vertex_array(None);
             self.gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, None);
             self.gl.bind_buffer(glow::ARRAY_BUFFER, None);

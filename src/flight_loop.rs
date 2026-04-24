@@ -43,7 +43,6 @@ use xplm_sys;
 use std::f32;
 use std::fmt;
 use std::mem;
-use std::ops::DerefMut;
 use std::os::raw::*;
 use std::time::Duration;
 
@@ -63,15 +62,15 @@ impl FlightLoop {
     /// The callback will not be called until it is scheduled
     pub fn new<C: FlightLoopCallback>(callback: C) -> Self {
         let mut data = Box::new(LoopData::new(callback));
-        let data_ptr: *mut LoopData = data.deref_mut();
+        let data_ptr: *mut LoopData = &raw mut *data;
         // Create a flight loop
         let mut config = xplm_sys::XPLMCreateFlightLoop_t {
             structSize: mem::size_of::<xplm_sys::XPLMCreateFlightLoop_t>() as c_int,
-            phase: xplm_sys::xplm_FlightLoop_Phase_AfterFlightModel as i32,
+            phase: xplm_sys::xplm_FlightLoop_Phase_AfterFlightModel.cast_signed(),
             callbackFunc: Some(flight_loop_callback::<C>),
-            refcon: data_ptr as *mut c_void,
+            refcon: data_ptr.cast::<c_void>(),
         };
-        data.loop_id = unsafe { Some(xplm_sys::XPLMCreateFlightLoop(&mut config)) };
+        data.loop_id = unsafe { Some(xplm_sys::XPLMCreateFlightLoop(&raw mut config)) };
         FlightLoop { data }
     }
 
@@ -80,7 +79,7 @@ impl FlightLoop {
     /// After the flight loop callback is first called, it will continue to be called
     /// every flight loop unless it cancels itself or changes its schedule.
     pub fn schedule_immediate(&mut self) {
-        self.data.set_interval(LoopResult::Loops(1))
+        self.data.set_interval(LoopResult::Loops(1));
     }
 
     /// Schedules the flight loop callback to be executed after a specified number of flight loops
@@ -95,8 +94,8 @@ impl FlightLoop {
     ///
     /// After the callback is first called, it will continue to be called with that interval.
     pub fn schedule_after(&mut self, time: Duration) {
-        let seconds_f = (time.as_secs() as f32) + (1e-9_f32 * time.subsec_nanos() as f32);
-        self.data.set_interval(LoopResult::Seconds(seconds_f));
+        self.data
+            .set_interval(LoopResult::Seconds(time.as_secs_f32()));
     }
 
     /// Deactivates the flight loop
@@ -168,7 +167,7 @@ where
     F: 'static + FnMut(&mut LoopState),
 {
     fn flight_loop(&mut self, state: &mut LoopState) {
-        self(state)
+        self(state);
     }
 }
 
@@ -218,8 +217,7 @@ impl<'a> LoopState<'a> {
     }
     /// Configures this callback to be called after the provided duration
     pub fn call_after(&mut self, time: Duration) {
-        let seconds_f = (time.as_secs() as f32) + (1e-9_f32 * time.subsec_nanos() as f32);
-        *self.result = LoopResult::Seconds(seconds_f);
+        *self.result = LoopResult::Seconds(time.as_secs_f32());
     }
 }
 
@@ -248,31 +246,31 @@ impl From<LoopResult> for f32 {
 /// The flight loop callback that X-Plane calls
 ///
 /// This expands to a separate callback for every type C.
-unsafe extern "C" fn flight_loop_callback<C: FlightLoopCallback>(
+extern "C" fn flight_loop_callback<C: FlightLoopCallback>(
     since_last_call: c_float,
     since_loop: c_float,
     counter: c_int,
     refcon: *mut c_void,
 ) -> c_float {
-    // Get the loop data
-    let loop_data = refcon as *mut LoopData;
-    // Create a state
-    let mut state = LoopState {
-        since_call: secs_to_duration(since_last_call),
-        since_loop: secs_to_duration(since_loop),
-        counter,
-        result: (*loop_data).loop_result.as_mut().unwrap(),
-    };
-    let callback_ptr: *mut dyn FlightLoopCallback = (*loop_data).callback.as_mut();
-    let callback = callback_ptr as *mut C;
-    (*callback).flight_loop(&mut state);
+    unsafe {
+        // Get the loop data
+        let loop_data = refcon as *mut LoopData;
+        // Create a state
+        let mut state = LoopState {
+            since_call: secs_to_duration(since_last_call),
+            since_loop: secs_to_duration(since_loop),
+            counter,
+            result: (*loop_data).loop_result.as_mut().unwrap(),
+        };
+        let callback_ptr: *mut dyn FlightLoopCallback = (*loop_data).callback.as_mut();
+        let callback = callback_ptr as *mut C;
+        (*callback).flight_loop(&mut state);
 
-    // Return the next loop time
-    f32::from(state.result.clone())
+        // Return the next loop time
+        f32::from(state.result.clone())
+    }
 }
 
 fn secs_to_duration(time: f32) -> Duration {
-    let seconds = time.trunc() as u64;
-    let nanoseconds = (time.fract() * 1e9_f32) as u32;
-    Duration::new(seconds, nanoseconds)
+    Duration::from_secs_f32(time)
 }
