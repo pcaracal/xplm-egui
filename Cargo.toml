@@ -28,6 +28,7 @@ thiserror = "2.0.18"
 uom = { version = "0.38.0", optional = true }
 anyhow = "1.0.102"
 bitflags = "2.11.1"
+egui_extras = "0.34.1"
 
 [dev-dependencies]
 derive_more = { version = "2.1.1", features = ["try_from"] }
@@ -46,6 +47,10 @@ strip = "symbols"
 
 [[example]]
 name = "egui"
+crate-type = ["cdylib"]
+
+[[example]]
+name = "egui_datarefs"
 crate-type = ["cdylib"]
 
 [[example]]

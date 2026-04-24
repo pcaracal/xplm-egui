@@ -579,9 +579,9 @@ impl KeyEvent {
         let vkey = vkey.cast_unsigned();
         let flags = KeyFlags::from_bits_truncate(flags.cast_unsigned());
 
-        let Some(desc) = (unsafe {
+        let Ok(desc) = (unsafe {
             let cstr = xplm_sys::XPLMGetVirtualKeyDescription(vkey.cast_signed());
-            std::ffi::CStr::from_ptr(cstr).to_str().ok()
+            std::ffi::CStr::from_ptr(cstr).to_str()
         }) else {
             return KeyEvent {
                 basic_char: None,

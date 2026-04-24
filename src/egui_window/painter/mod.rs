@@ -177,6 +177,11 @@ impl Painter {
                 stride,
                 i32::try_from(offset_of!(Vertex, color))?,
             );
+
+            gl.bind_vertex_array(None);
+            gl.bind_buffer(glow::ARRAY_BUFFER, None);
+            gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, None);
+            gl.use_program(None);
         }
 
         Ok(())

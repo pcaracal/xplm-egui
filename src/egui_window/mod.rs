@@ -9,6 +9,7 @@ use crate::{
     window::{Window, WindowDecorations, WindowLayer, WindowRef},
 };
 
+#[allow(unused)]
 pub trait App: 'static {
     /// Draw your ui here
     fn ui(&mut self, ui: &mut egui::Ui, window: &crate::window::Window);
@@ -25,7 +26,7 @@ impl EguiWindow {
             geometry,
             WindowLayer::FloatingWindows,
             WindowDecorations::RoundRectangle,
-            EguiWindowContext::new(app)?,
+            EguiWindowContext::new(Box::new(app))?,
         );
 
         Ok(Self { window })

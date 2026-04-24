@@ -17,6 +17,8 @@ impl Painter {
             ..
         } = ctx.run_ui(input.take(), ui);
 
+        self.prepare();
+
         for (_, delta) in &textures_delta.set {
             match &delta.image {
                 egui::ImageData::Color(image) => {
@@ -25,8 +27,6 @@ impl Painter {
                 }
             }
         }
-
-        self.prepare();
 
         let primitives = ctx.tessellate(shapes, pixels_per_point);
         for primitive in primitives {
