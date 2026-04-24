@@ -8,7 +8,7 @@ use bitflags::bitflags;
 use euclid::{Rect, point2};
 use xplm_sys::{self, XPLMSetWindowGravity};
 
-use crate::geometry::{RectExt, ScreenPoint, ScreenRect, WindowRect};
+use crate::geometry::{RectConv, RectExt, ScreenPoint, ScreenRect, WindowRect};
 
 #[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Hash)]
 #[repr(u32)]
@@ -268,7 +268,6 @@ impl Window {
         WindowRef { window: window_box }
     }
 
-    /// Use `.geometry()` for drawing
     /// Returns the geometry of this window, with x + 100'000 in the case of a pop-out window
     #[must_use]
     pub fn screen_geometry(&self) -> ScreenRect {
@@ -294,7 +293,7 @@ impl Window {
         }
     }
 
-    /// Returns the geometry of this window's opengl viewport
+    /// Returns the geometry of this window's drawable opengl viewport
     #[must_use]
     pub fn geometry(&self) -> WindowRect {
         self.screen_geometry().to_window_space()
@@ -335,6 +334,10 @@ impl Window {
     /// Sets the window positioning mode.
     pub fn set_positioning_mode(&self, mode: WindowPositioningMode, monitor_index: i32) {
         unsafe { xplm_sys::XPLMSetWindowPositioningMode(self.id, mode as _, monitor_index) };
+    }
+    #[must_use]
+    pub fn is_popped_out(&self) -> bool {
+        unsafe { xplm_sys::XPLMWindowIsPoppedOut(self.id) != 0 }
     }
     /// Forces the window to take keyboard focus.
     pub fn take_keyboard_focus(&self) {

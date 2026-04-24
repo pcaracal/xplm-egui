@@ -4,8 +4,8 @@ use crate::{
     display::get_mouse_location_global,
     draw::GraphicsState,
     egui_window::{App, painter::Painter},
-    geometry::{PointExt, SizeExt, WindowRect},
-    window::{MouseAction, MouseEvent, Window, WindowDelegate},
+    geometry::{PointExt, SizeExt, WindowPoint, WindowRect},
+    window::{MouseAction, MouseEvent, WindowDelegate},
 };
 
 pub(super) struct EguiWindowContext {
@@ -18,6 +18,7 @@ pub(super) struct EguiWindowContext {
     egui_ctx: egui::Context,
     egui_input: egui::RawInput,
 
+    cursor_pos: WindowPoint,
     cursor_icon: egui::CursorIcon,
 }
 
@@ -30,6 +31,7 @@ impl EguiWindowContext {
             painter: Painter::new()?,
             egui_ctx: egui::Context::default(),
             egui_input: egui::RawInput::default(),
+            cursor_pos: WindowPoint::default(),
             cursor_icon: egui::CursorIcon::Default,
         })
     }
@@ -44,7 +46,6 @@ impl WindowDelegate for EguiWindowContext {
             .apply();
         self.viewport = window.geometry();
         self.painter.set_viewport(self.viewport);
-
         self.update_mouse();
 
         if self.egui_ctx.egui_wants_keyboard_input() {
@@ -106,20 +107,16 @@ impl WindowDelegate for EguiWindowContext {
         }
     }
 
-    fn mouse_event(
-        &mut self,
-        window: &crate::window::Window,
-        event: crate::window::MouseEvent,
-    ) -> bool {
-        self.handle_mouse_event(window, &event, true)
+    fn mouse_event(&mut self, _: &crate::window::Window, event: crate::window::MouseEvent) -> bool {
+        self.handle_mouse_event(&event, true)
     }
 
     fn right_mouse_event(
         &mut self,
-        window: &crate::window::Window,
+        _: &crate::window::Window,
         event: crate::window::MouseEvent,
     ) -> bool {
-        self.handle_mouse_event(window, &event, false)
+        self.handle_mouse_event(&event, false)
     }
 
     fn scroll_event(
@@ -144,10 +141,9 @@ impl WindowDelegate for EguiWindowContext {
         _: &crate::window::Window,
         _: crate::geometry::ScreenPoint,
     ) -> crate::window::Cursor {
-        let pos = get_mouse_location_global().to_window_space();
-        self.egui_input
-            .events
-            .push(egui::Event::PointerMoved(pos.to_egui(self.viewport)));
+        self.egui_input.events.push(egui::Event::PointerMoved(
+            self.cursor_pos.to_egui(self.viewport),
+        ));
         crate::window::Cursor::Default
     }
 }
@@ -155,17 +151,13 @@ impl WindowDelegate for EguiWindowContext {
 impl EguiWindowContext {
     fn update_mouse(&mut self) {
         let pos = get_mouse_location_global().to_window_space();
+        self.cursor_pos = pos;
         if !self.viewport.contains(pos) {
             self.egui_input.events.push(egui::Event::PointerGone);
         }
     }
 
-    fn handle_mouse_event(&mut self, window: &Window, event: &MouseEvent, left: bool) -> bool {
-        let pos = event
-            .position()
-            .to_window_space()
-            .to_egui(window.geometry());
-
+    fn handle_mouse_event(&mut self, event: &MouseEvent, left: bool) -> bool {
         let button = if left {
             egui::PointerButton::Primary
         } else {
@@ -174,7 +166,7 @@ impl EguiWindowContext {
 
         if event.action() != MouseAction::Drag {
             self.egui_input.events.push(egui::Event::PointerButton {
-                pos,
+                pos: self.cursor_pos.to_egui(self.viewport),
                 button,
                 pressed: event.action() == MouseAction::Down,
                 modifiers: self.egui_input.modifiers,

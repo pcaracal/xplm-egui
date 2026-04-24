@@ -1,5 +1,7 @@
 use euclid::{Point2D, Rect, Size2D, point2, size2, vec2};
 
+use crate::display::get_screen_bounds_global;
+
 /// X-Plane screen space in pixels
 /// Origin is the bottom left corner of the main X-Plane OpenGL window at (0, 0)
 ///
@@ -24,6 +26,9 @@ pub trait RectExt<T, U> {
     fn top(&self) -> T;
     fn right(&self) -> T;
     fn bottom(&self) -> T;
+}
+
+pub trait RectConv<T> {
     fn to_window_space(&self) -> Rect<T, XPWindowSpace>;
 }
 
@@ -43,11 +48,15 @@ impl<U> RectExt<i32, U> for Rect<i32, U> {
     fn bottom(&self) -> i32 {
         self.min_y()
     }
+}
+
+impl RectConv<i32> for Rect<i32, XPScreenSpace> {
     fn to_window_space(&self) -> Rect<i32, XPWindowSpace> {
         if self.left() >= 100_000 {
             self.translate(vec2(-100_000, 0)).cast_unit()
         } else {
             self.cast_unit()
+                .translate(-get_screen_bounds_global().origin.to_vector().cast_unit())
         }
     }
 }
@@ -62,7 +71,7 @@ impl PointExt<i32, XPScreenSpace> for ScreenPoint {
         if self.x >= 100_000 {
             (*self - vec2(100_000, 0)).cast_unit()
         } else {
-            self.cast_unit()
+            self.cast_unit() - get_screen_bounds_global().origin.to_vector().cast_unit()
         }
     }
 

@@ -27,9 +27,16 @@ xplm_egui::uom_typed_dataref!(
 );
 
 xplm_egui::uom_typed_dataref!(
-    name: velocity,
+    name: velocity_mps,
     type: uom::si::velocity::Velocity,
     unit: uom::si::velocity::meter_per_second,
+    range: f64::MIN..f64::MAX
+);
+
+xplm_egui::uom_typed_dataref!(
+    name: velocity_kt,
+    type: uom::si::velocity::Velocity,
+    unit: uom::si::velocity::knot,
     range: f64::MIN..f64::MAX
 );
 
@@ -40,13 +47,23 @@ xplm_egui::uom_typed_dataref!(
     range: f64::MIN..f64::MAX
 );
 
+xplm_egui::uom_typed_dataref!(
+    name: pressure,
+    type: uom::si::pressure::Pressure,
+    unit: uom::si::pressure::pascal,
+    range: f64::MIN..f64::MAX
+);
+
 struct Datarefs {
     latitude: angle::DataRef<f64>,
     longitude: angle::DataRef<f64>,
     elevation: length::DataRef<f64>,
-    ground_speed: velocity::DataRef<f32>,
+    ground_speed: velocity_mps::DataRef<f32>,
+    ias: velocity_kt::DataRef<f32>,
+    tas: velocity_mps::DataRef<f32>,
     mag_heading: angle::DataRef<f32>,
     true_heading: angle::DataRef<f32>,
+    qnh: pressure::DataRef<f32>,
 }
 
 #[derive(Default, Clone, Copy)]
@@ -55,8 +72,11 @@ struct Data {
     longitude: uom::si::f64::Angle,
     elevation: uom::si::f64::Length,
     ground_speed: uom::si::f32::Velocity,
+    tas: uom::si::f32::Velocity,
+    ias: uom::si::f32::Velocity,
     mag_heading: uom::si::f32::Angle,
     true_heading: uom::si::f32::Angle,
+    qnh: uom::si::f32::Pressure,
 }
 
 impl Datarefs {
@@ -65,9 +85,12 @@ impl Datarefs {
             latitude: angle::DataRef::find("sim/flightmodel/position/latitude")?,
             longitude: angle::DataRef::find("sim/flightmodel/position/longitude")?,
             elevation: length::DataRef::find("sim/flightmodel/position/elevation")?,
-            ground_speed: velocity::DataRef::find("sim/flightmodel/position/groundspeed")?,
+            ground_speed: velocity_mps::DataRef::find("sim/flightmodel/position/groundspeed")?,
+            tas: velocity_mps::DataRef::find("sim/flightmodel/position/true_airspeed")?,
+            ias: velocity_kt::DataRef::find("sim/flightmodel/position/indicated_airspeed")?,
             mag_heading: angle::DataRef::find("sim/flightmodel/position/mag_psi")?,
             true_heading: angle::DataRef::find("sim/flightmodel/position/true_psi")?,
+            qnh: pressure::DataRef::find("sim/weather/aircraft/qnh_pas")?,
         })
     }
 
@@ -77,8 +100,11 @@ impl Datarefs {
             longitude: self.longitude.get().unwrap_or_default(),
             elevation: self.elevation.get().unwrap_or_default(),
             ground_speed: self.ground_speed.get().unwrap_or_default(),
+            tas: self.tas.get().unwrap_or_default(),
+            ias: self.ias.get().unwrap_or_default(),
             mag_heading: self.mag_heading.get().unwrap_or_default(),
             true_heading: self.true_heading.get().unwrap_or_default(),
+            qnh: self.qnh.get().unwrap_or_default(),
         }
     }
 }
@@ -114,6 +140,11 @@ impl App for EguiApp {
                                 "Ground Speed",
                                 format!("{:.2} kt", data.ground_speed.knots_f32()),
                             ),
+                            ("True Airspeed", format!("{:.2} kt", data.tas.knots_f32())),
+                            (
+                                "Indicated Airspeed",
+                                format!("{:.2} kt", data.ias.knots_f32()),
+                            ),
                             (
                                 "Magnetic Heading",
                                 format!("{:.2}°", data.mag_heading.degrees_f32()),
@@ -122,6 +153,7 @@ impl App for EguiApp {
                                 "True Heading",
                                 format!("{:.2}°", data.true_heading.degrees_f32()),
                             ),
+                            ("QNH", format!("{:.2} hPa", data.qnh.hectopascal_f32())),
                         ] {
                             body.row(20.0, |mut row| {
                                 row.col(|ui| {
@@ -163,7 +195,6 @@ impl Plugin for MenuPlugin {
         let window = EguiWindow::new(EguiApp { datarefs }, window_geometry)?;
 
         // EguiWindow is a wrapper around a regular xplane window, so all the same apis can be used
-        window.set_visible(true);
 
         // Anything except \0
         window.set_title("Egui Datarefs")?;

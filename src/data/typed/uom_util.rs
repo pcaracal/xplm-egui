@@ -1,6 +1,7 @@
 use uom::si::{
     angle::{degree, minute, radian, revolution, second},
     length::{foot, kilometer, meter, nautical_mile},
+    pressure::{bar, hectopascal, inch_of_mercury, pascal},
     velocity::{
         foot_per_minute, foot_per_second, kilometer_per_hour, knot, meter_per_second, mile_per_hour,
     },
@@ -9,7 +10,7 @@ use uom::si::{
 macro_rules! impl_uom_convert {
     (
      [$(
-         $f:tt, $uom_type:path, [$(
+         $f:ty, $uom_type:path, [$(
             ($fn:ident, $unit:ty)
         ),*]
     ),*]) => {
@@ -69,6 +70,12 @@ impl_uom_convert! {
             (miles_per_hour, mile_per_hour),
             (knots, knot)
         ],
+        f64, Pressure, [
+            (pascals, pascal),
+            (hectopascal, hectopascal),
+            (bar, bar),
+            (inches_of_mercury, inch_of_mercury)
+        ],
         f32, Angle, [
             (radians, radian),
             (degrees, degree),
@@ -89,6 +96,13 @@ impl_uom_convert! {
             (feet_per_minute, foot_per_minute),
             (miles_per_hour, mile_per_hour),
             (knots, knot)
+        ],
+
+        f32, Pressure, [
+            (pascals, pascal),
+            (hectopascal, hectopascal),
+            (bar, bar),
+            (inches_of_mercury, inch_of_mercury)
         ]
     ]
 }
