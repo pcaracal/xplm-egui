@@ -4,10 +4,13 @@
 
 extern crate xplm_egui;
 
-use egui_extras::{Column, TableBuilder};
+use egui::Widget;
+use uom::{
+    fmt::DisplayStyle,
+    si::{angle::degree, length::foot, pressure::hectopascal, velocity::knot},
+};
 use xplm_egui::{
-    data::typed::{TypedDataRead, uom_util::FromUom},
-    debugln,
+    data::typed::TypedDataRead,
     egui_window::{App, EguiWindow},
     geometry::ScreenRect,
     menu::{ActionItem, Menu, MenuClickHandler},
@@ -109,58 +112,124 @@ impl Datarefs {
     }
 }
 
+#[allow(clippy::struct_excessive_bools)]
 struct EguiApp {
+    striped: bool,
+    overline: bool,
+    resizable: bool,
+    clickable: bool,
+
     datarefs: Datarefs,
 }
 
 impl App for EguiApp {
+    #[allow(clippy::too_many_lines)]
     fn ui(&mut self, ui: &mut egui::Ui, _: &xplm_egui::window::Window) {
         egui::CentralPanel::default_margins().show_inside(ui, |ui| {
+            ui.horizontal_wrapped(|ui| {
+                ui.checkbox(&mut self.striped, "Striped");
+                ui.checkbox(&mut self.overline, "Overline");
+                ui.checkbox(&mut self.resizable, "Resizable");
+                ui.checkbox(&mut self.clickable, "Clickable");
+            });
+
             ui.vertical(|ui| {
                 let data = self.datarefs.data();
 
-                TableBuilder::new(ui)
-                    .column(Column::remainder())
-                    .column(Column::remainder())
-                    .resizable(false)
+                let mut table = egui_extras::TableBuilder::new(ui)
+                    .striped(self.striped)
+                    .resizable(self.resizable)
+                    .cell_layout(
+                        egui::Layout::left_to_right(egui::Align::Center).with_cross_justify(true),
+                    )
+                    .auto_shrink(false)
+                    .column(egui_extras::Column::auto())
+                    .column(egui_extras::Column::auto());
+
+                if self.clickable {
+                    table = table.sense(egui::Sense::click());
+                }
+
+                let names = [
+                    "Latitude",
+                    "Longitude",
+                    "Elevation",
+                    "Ground Speed",
+                    "TAS",
+                    "IAS",
+                    "Mag Heading",
+                    "True Heading",
+                    "QNH",
+                ];
+
+                let values = [
+                    format!(
+                        "{:.6}",
+                        data.latitude
+                            .into_format_args(degree, DisplayStyle::Abbreviation)
+                    ),
+                    format!(
+                        "{:.6}",
+                        data.longitude
+                            .into_format_args(degree, DisplayStyle::Abbreviation)
+                    ),
+                    format!(
+                        "{:.1}",
+                        data.elevation
+                            .into_format_args(foot, DisplayStyle::Abbreviation)
+                    ),
+                    format!(
+                        "{:.2}",
+                        data.ground_speed
+                            .into_format_args(knot, DisplayStyle::Abbreviation)
+                    ),
+                    format!(
+                        "{:.2}",
+                        data.tas.into_format_args(knot, DisplayStyle::Abbreviation)
+                    ),
+                    format!(
+                        "{:.2}",
+                        data.ias.into_format_args(knot, DisplayStyle::Abbreviation)
+                    ),
+                    format!(
+                        "{:.1}",
+                        data.mag_heading
+                            .into_format_args(degree, DisplayStyle::Abbreviation)
+                    ),
+                    format!(
+                        "{:.1}",
+                        data.true_heading
+                            .into_format_args(degree, DisplayStyle::Abbreviation)
+                    ),
+                    format!(
+                        "{:.2}",
+                        data.qnh
+                            .into_format_args(hectopascal, DisplayStyle::Abbreviation)
+                    ),
+                ];
+
+                table
                     .header(20.0, |mut header| {
                         header.col(|ui| {
-                            ui.heading("Name");
+                            ui.strong("Name");
                         });
                         header.col(|ui| {
-                            ui.heading("Value");
+                            ui.strong("Value");
                         });
                     })
                     .body(|mut body| {
-                        for (name, value) in [
-                            ("Latitude", format!("{:.6}°", data.latitude.degrees_f64())),
-                            ("Longitude", format!("{:.6}°", data.longitude.degrees_f64())),
-                            ("Elevation", format!("{:.2} ft", data.elevation.feet_f64())),
-                            (
-                                "Ground Speed",
-                                format!("{:.2} kt", data.ground_speed.knots_f32()),
-                            ),
-                            ("True Airspeed", format!("{:.2} kt", data.tas.knots_f32())),
-                            (
-                                "Indicated Airspeed",
-                                format!("{:.2} kt", data.ias.knots_f32()),
-                            ),
-                            (
-                                "Magnetic Heading",
-                                format!("{:.2}°", data.mag_heading.degrees_f32()),
-                            ),
-                            (
-                                "True Heading",
-                                format!("{:.2}°", data.true_heading.degrees_f32()),
-                            ),
-                            ("QNH", format!("{:.2} hPa", data.qnh.hectopascal_f32())),
-                        ] {
-                            body.row(20.0, |mut row| {
+                        for (name, value) in names.into_iter().zip(values) {
+                            body.row(18.0, |mut row| {
+                                row.set_overline(self.overline);
                                 row.col(|ui| {
-                                    ui.label(name);
+                                    egui::Label::new(egui::RichText::new(name))
+                                        .selectable(false)
+                                        .ui(ui);
                                 });
                                 row.col(|ui| {
-                                    ui.label(value);
+                                    egui::Label::new(egui::RichText::new(value))
+                                        .selectable(false)
+                                        .ui(ui);
                                 });
                             });
                         }
@@ -174,10 +243,6 @@ impl Plugin for EguiDatarefsPlugin {
     type Error = anyhow::Error;
 
     fn start() -> anyhow::Result<Self> {
-        if let Err(why) = init_log() {
-            debugln!("Failed to initialize logger: {why}");
-        }
-
         let datarefs = Datarefs::new()?;
 
         // Window size
@@ -192,7 +257,16 @@ impl Plugin for EguiDatarefsPlugin {
             .translate(screen.center().to_vector())
             .inflate(width, height);
 
-        let window = EguiWindow::new(EguiApp { datarefs }, window_geometry)?;
+        let window = EguiWindow::new(
+            EguiApp {
+                striped: true,
+                overline: true,
+                resizable: true,
+                clickable: true,
+                datarefs,
+            },
+            window_geometry,
+        )?;
 
         // EguiWindow is a wrapper around a regular xplane window, so all the same apis can be used
 
@@ -203,7 +277,7 @@ impl Plugin for EguiDatarefsPlugin {
         window.set_resizing_limits(100, 100, None, None);
 
         // Menu boilerplate
-        let plugins_submenu = Menu::new("Egui Test Plugin")?;
+        let plugins_submenu = Menu::new("Egui Datarefs Example")?;
         plugins_submenu.add_child(ActionItem::new(
             "Toggle egui window",
             ActionHandlerImpl(window),
@@ -235,16 +309,4 @@ impl MenuClickHandler for ActionHandlerImpl {
     fn item_clicked(&mut self, _: &ActionItem) {
         self.0.set_visible(!self.0.visible());
     }
-}
-
-// log to 'X-Plane 12/Resources/plugins/xplm-egui-example/log.txt' for tail -F
-fn init_log() -> anyhow::Result<()> {
-    let path = std::env::current_dir()?.join("Resources/plugins/xplm-egui-example/log.txt");
-
-    simplelog::WriteLogger::init(
-        simplelog::LevelFilter::Debug,
-        simplelog::Config::default(),
-        std::fs::File::create(path)?,
-    )
-    .map_err(Into::into)
 }

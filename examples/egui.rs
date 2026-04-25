@@ -9,7 +9,7 @@ use xplm_egui::{
     debugln,
     egui_window::{App, EguiWindow},
     geometry::ScreenRect,
-    menu::{CheckHandler, CheckItem, Menu},
+    menu::{ActionItem, Menu, MenuClickHandler},
     plugin::{Plugin, PluginInfo},
     xplane_plugin,
 };
@@ -104,10 +104,11 @@ impl Plugin for EguiPlugin {
         window.set_resizing_limits(100, 100, None, None);
 
         // Menu boilerplate
-        let plugins_submenu = Menu::new("Egui Test Plugin").unwrap();
-        plugins_submenu.add_child(
-            CheckItem::new("Show egui window", false, CheckHandlerImpl(window)).unwrap(),
-        );
+        let plugins_submenu = Menu::new("Egui Example")?;
+        plugins_submenu.add_child(ActionItem::new(
+            "Show egui window",
+            ActionHandlerImpl(window),
+        )?);
         plugins_submenu.add_to_plugins_menu();
 
         // The menu needs to be part of the plugin struct, or it will immediately get dropped and will not appear
@@ -127,19 +128,13 @@ impl Plugin for EguiPlugin {
 
 xplane_plugin!(EguiPlugin);
 
-struct CheckHandlerImpl(EguiWindow);
+struct ActionHandlerImpl(EguiWindow);
 
-impl CheckHandler for CheckHandlerImpl {
-    fn item_checked(&mut self, item: &CheckItem, checked: bool) {
-        self.0.set_visible(checked);
-
-        if checked {
-            item.set_name("Hide egui window").unwrap();
-            log::info!("Egui window shown");
-        } else {
-            item.set_name("Show egui window").unwrap();
-            log::info!("Egui window hidden");
-        }
+impl MenuClickHandler for ActionHandlerImpl {
+    fn item_clicked(&mut self, _: &ActionItem) {
+        let vis = !self.0.visible();
+        self.0.set_visible(vis);
+        log::info!("Egui window visible: {vis}");
     }
 }
 
