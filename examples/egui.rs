@@ -5,14 +5,16 @@
 
 extern crate xplm_egui;
 
-use log::info;
-use xplm_egui::egui_window::{App, EguiWindow};
-use xplm_egui::geometry::ScreenRect;
-use xplm_egui::menu::{CheckHandler, CheckItem, Menu};
-use xplm_egui::plugin::{Plugin, PluginInfo};
-use xplm_egui::{debugln, xplane_plugin};
+use xplm_egui::{
+    debugln,
+    egui_window::{App, EguiWindow},
+    geometry::ScreenRect,
+    menu::{CheckHandler, CheckItem, Menu},
+    plugin::{Plugin, PluginInfo},
+    xplane_plugin,
+};
 
-struct MenuPlugin {
+struct EguiPlugin {
     _menu: Menu,
 }
 
@@ -59,7 +61,7 @@ impl App for EguiApp {
                             for c in 0..self.cols {
                                 if ui.button(format!("{c}-{r}")).clicked() {
                                     self.cell_clicked = Some((c, r));
-                                    info!("Cell {c}-{r} clicked");
+                                    log::info!("Cell {c}-{r} clicked");
                                 }
                             }
                             ui.end_row();
@@ -71,7 +73,7 @@ impl App for EguiApp {
     }
 }
 
-impl Plugin for MenuPlugin {
+impl Plugin for EguiPlugin {
     type Error = anyhow::Error;
 
     fn start() -> anyhow::Result<Self> {
@@ -109,7 +111,7 @@ impl Plugin for MenuPlugin {
         plugins_submenu.add_to_plugins_menu();
 
         // The menu needs to be part of the plugin struct, or it will immediately get dropped and will not appear
-        Ok(MenuPlugin {
+        Ok(EguiPlugin {
             _menu: plugins_submenu,
         })
     }
@@ -123,7 +125,7 @@ impl Plugin for MenuPlugin {
     }
 }
 
-xplane_plugin!(MenuPlugin);
+xplane_plugin!(EguiPlugin);
 
 struct CheckHandlerImpl(EguiWindow);
 
@@ -133,10 +135,10 @@ impl CheckHandler for CheckHandlerImpl {
 
         if checked {
             item.set_name("Hide egui window").unwrap();
-            info!("Egui window shown");
+            log::info!("Egui window shown");
         } else {
             item.set_name("Show egui window").unwrap();
-            info!("Egui window hidden");
+            log::info!("Egui window hidden");
         }
     }
 }

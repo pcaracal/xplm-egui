@@ -15,7 +15,7 @@ use xplm_egui::{
     xplane_plugin,
 };
 
-struct MenuPlugin {
+struct EguiDatarefsPlugin {
     _menu: Menu,
 }
 
@@ -170,7 +170,7 @@ impl App for EguiApp {
     }
 }
 
-impl Plugin for MenuPlugin {
+impl Plugin for EguiDatarefsPlugin {
     type Error = anyhow::Error;
 
     fn start() -> anyhow::Result<Self> {
@@ -211,7 +211,7 @@ impl Plugin for MenuPlugin {
         plugins_submenu.add_to_plugins_menu();
 
         // The menu needs to be part of the plugin struct, or it will immediately get dropped and will not appear
-        Ok(MenuPlugin {
+        Ok(EguiDatarefsPlugin {
             _menu: plugins_submenu,
         })
     }
@@ -227,7 +227,7 @@ impl Plugin for MenuPlugin {
     }
 }
 
-xplane_plugin!(MenuPlugin);
+xplane_plugin!(EguiDatarefsPlugin);
 
 struct ActionHandlerImpl(EguiWindow);
 

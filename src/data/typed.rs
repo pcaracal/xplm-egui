@@ -50,6 +50,7 @@ pub mod borrowed;
 pub mod owned;
 #[cfg(feature = "uom_conv")]
 pub mod uom_conv;
+#[cfg(feature = "uom_conv")]
 pub mod uom_util;
 
 /// Trait which must be implemented by the conversion type to be able to read from typed datarefs
