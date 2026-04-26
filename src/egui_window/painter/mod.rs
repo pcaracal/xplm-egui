@@ -49,18 +49,20 @@ impl Painter {
             let version = gl.get_parameter_string(glow::VERSION);
             let renderer = gl.get_parameter_string(glow::RENDERER);
             let vendor = gl.get_parameter_string(glow::VENDOR);
-            debug!("\nOpenGL Version: {version}\n  Renderer: {renderer}\n  Vendor: {vendor}");
+            crate::debugln!(
+                "\nOpenGL Version: {version}\n  Renderer: {renderer}\n  Vendor: {vendor}"
+            );
         }
 
         let max_texture_side = unsafe { gl.get_parameter_i32(glow::MAX_TEXTURE_SIZE) } as usize;
-        debug!("max texture size: {max_texture_side}");
+        crate::debugln!("max texture size: {max_texture_side}");
         let supported_extensions = gl.supported_extensions();
         let supports_srgb_framebuffer = !cfg!(target_arch = "wasm32")
             && supported_extensions.iter().any(|extension| {
                 // {GL,GLX,WGL}_ARB_framebuffer_sRGB, …
                 extension.ends_with("ARB_framebuffer_sRGB")
             });
-        debug!("SRGB framebuffer Support: {supports_srgb_framebuffer}");
+        crate::debugln!("SRGB framebuffer Support: {supports_srgb_framebuffer}");
 
         let mut painter = Painter {
             viewport: WindowRect::default(),
@@ -222,7 +224,7 @@ impl Painter {
 impl Drop for Painter {
     fn drop(&mut self) {
         if !self.destroyed {
-            warn!("Painter was not destroyed before drop, resources will leak");
+            crate::debugln!("Painter was not destroyed before drop, resources will leak");
         }
     }
 }

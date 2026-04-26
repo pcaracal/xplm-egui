@@ -48,7 +48,6 @@ use super::{ArrayRead, ArrayReadWrite, ArrayType, DataRead, DataReadWrite};
 pub mod borrowed;
 /// Typed datarefs created by this plugin.
 pub mod owned;
-#[cfg(feature = "uom_conv")]
 pub mod uom_conv;
 
 /// Trait which must be implemented by the conversion type to be able to read from typed datarefs
