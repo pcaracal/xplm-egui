@@ -10,6 +10,11 @@
 //!   [`crate::data::validated::validator`]. This adds a dependency on the [`num`] crate.
 
 extern crate xplm_sys;
+
+pub mod sys {
+    pub use xplm_sys::*;
+}
+
 #[macro_use]
 extern crate anyhow;
 
