@@ -1,13 +1,19 @@
-#version 330
 
+#if __VERSION__ < 130
+#define IN attribute
+#define OUT varying
+#else
 precision highp float;
+#define IN in
+#define OUT out
+#endif
 
-in vec2 a_pos;
-in vec4 a_srgba; // 0-255 sRGB
-in vec2 a_tc;
+IN vec2 a_pos;
+IN vec4 a_srgba; // 0-255 sRGB
+IN vec2 a_tc;
 
-out vec4 v_rgba_in_gamma;
-out vec2 v_tc;
+OUT vec4 v_rgba_in_gamma;
+OUT vec2 v_tc;
 
 uniform vec2 u_screen_size;
 

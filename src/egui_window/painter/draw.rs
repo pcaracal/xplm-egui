@@ -3,7 +3,7 @@ use std::num::NonZeroU32;
 use egui::{ClippedPrimitive, epaint::Primitive};
 use glow::{HasContext, NativeTexture};
 
-use crate::geometry::RectExt;
+use crate::{debugln, geometry::RectExt};
 
 impl super::Painter {
     #[allow(clippy::cast_precision_loss)]
@@ -79,9 +79,14 @@ impl super::Painter {
             self.gl.bind_vertex_array(self.vao);
             self.gl.bind_buffer(glow::ARRAY_BUFFER, self.vbo);
             self.gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, self.ebo);
-            self.gl.enable_vertex_attrib_array(0);
-            self.gl.enable_vertex_attrib_array(1);
-            self.gl.enable_vertex_attrib_array(2);
+            if self.vao.is_none() {
+                let _ = self
+                    .bind_vertex_attributes()
+                    .inspect_err(|e| debugln!("Error binding vertex attributes: {e}"));
+            }
+            self.gl.enable_vertex_attrib_array(self.a_pos_loc);
+            self.gl.enable_vertex_attrib_array(self.a_tc_loc);
+            self.gl.enable_vertex_attrib_array(self.a_srgba_loc);
 
             self.gl.buffer_data_u8_slice(
                 glow::ARRAY_BUFFER,
@@ -131,9 +136,9 @@ impl super::Painter {
                 glow::TEXTURE_2D,
                 NonZeroU32::new(self.last_texture.cast_unsigned()).map(NativeTexture),
             );
-            self.gl.disable_vertex_attrib_array(0);
-            self.gl.disable_vertex_attrib_array(1);
-            self.gl.disable_vertex_attrib_array(2);
+            self.gl.disable_vertex_attrib_array(self.a_pos_loc);
+            self.gl.disable_vertex_attrib_array(self.a_tc_loc);
+            self.gl.disable_vertex_attrib_array(self.a_srgba_loc);
             self.gl.bind_vertex_array(None);
             self.gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, None);
             self.gl.bind_buffer(glow::ARRAY_BUFFER, None);

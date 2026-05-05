@@ -26,6 +26,9 @@ pub struct Painter {
     program: glow::Program,
     u_screen_size: Option<glow::UniformLocation>,
     u_sampler: Option<glow::UniformLocation>,
+    a_pos_loc: u32,
+    a_tc_loc: u32,
+    a_srgba_loc: u32,
 
     vao: Option<glow::NativeVertexArray>,
     vbo: Option<glow::Buffer>,
@@ -72,6 +75,9 @@ impl Painter {
             gl,
             u_screen_size: None,
             u_sampler: None,
+            a_pos_loc: 0,
+            a_tc_loc: 0,
+            a_srgba_loc: 0,
 
             vao: None,
             vbo: None,
@@ -128,11 +134,15 @@ impl Painter {
         let gl = &self.gl;
         let program = self.program;
         unsafe {
-            self.vao = Some(
-                gl.create_vertex_array()
-                    .map_err(|e| anyhow!("gl error create vao: {e}"))?,
-            );
-            gl.bind_vertex_array(self.vao);
+            match gl.create_vertex_array() {
+                Ok(vao) => {
+                    self.vao = Some(vao);
+                    gl.bind_vertex_array(self.vao);
+                }
+                Err(e) => {
+                    crate::debugln!("VAO unavailable, fallback to non vao: {e}");
+                }
+            }
 
             self.vbo = Some(
                 gl.create_buffer()
@@ -146,41 +156,17 @@ impl Painter {
             );
             gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, self.ebo);
 
-            let a_pos_loc = gl
+            self.a_pos_loc = gl
                 .get_attrib_location(program, "a_pos")
                 .ok_or(anyhow!("attribute a_pos not found"))?;
-            let a_tc_loc = gl
+            self.a_tc_loc = gl
                 .get_attrib_location(program, "a_tc")
                 .ok_or(anyhow!("attribute a_tc not found"))?;
-            let a_srgba_loc = gl
+            self.a_srgba_loc = gl
                 .get_attrib_location(program, "a_srgba")
                 .ok_or(anyhow!("attribute a_srgba not found"))?;
 
-            let stride = i32::try_from(std::mem::size_of::<Vertex>())?;
-            gl.vertex_attrib_pointer_f32(
-                a_pos_loc,
-                2,
-                glow::FLOAT,
-                false,
-                stride,
-                i32::try_from(offset_of!(Vertex, pos))?,
-            );
-            gl.vertex_attrib_pointer_f32(
-                a_tc_loc,
-                2,
-                glow::FLOAT,
-                false,
-                stride,
-                i32::try_from(offset_of!(Vertex, uv))?,
-            );
-            gl.vertex_attrib_pointer_f32(
-                a_srgba_loc,
-                4,
-                glow::UNSIGNED_BYTE,
-                false,
-                stride,
-                i32::try_from(offset_of!(Vertex, color))?,
-            );
+            self.bind_vertex_attributes()?;
 
             gl.bind_vertex_array(None);
             gl.bind_buffer(glow::ARRAY_BUFFER, None);
@@ -188,6 +174,37 @@ impl Painter {
             gl.use_program(None);
         }
 
+        Ok(())
+    }
+
+    fn bind_vertex_attributes(&self) -> anyhow::Result<()> {
+        let stride = i32::try_from(std::mem::size_of::<Vertex>())?;
+        unsafe {
+            self.gl.vertex_attrib_pointer_f32(
+                self.a_pos_loc,
+                2,
+                glow::FLOAT,
+                false,
+                stride,
+                i32::try_from(offset_of!(Vertex, pos))?,
+            );
+            self.gl.vertex_attrib_pointer_f32(
+                self.a_tc_loc,
+                2,
+                glow::FLOAT,
+                false,
+                stride,
+                i32::try_from(offset_of!(Vertex, uv))?,
+            );
+            self.gl.vertex_attrib_pointer_f32(
+                self.a_srgba_loc,
+                4,
+                glow::UNSIGNED_BYTE,
+                false,
+                stride,
+                i32::try_from(offset_of!(Vertex, color))?,
+            );
+        }
         Ok(())
     }
 
