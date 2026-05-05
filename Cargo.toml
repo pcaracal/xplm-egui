@@ -16,7 +16,7 @@ edition = "2024"
 [dependencies]
 xplm-sys = { git = "https://github.com/pcaracal/xplm-sys.git" }
 bytemuck = "1.25.0"
-egui = { version = "0.34.1", features = ["bytemuck"] }
+egui = { version = "0.34.2", features = ["bytemuck"] }
 euclid = "0.22.14"
 gl_loader = "0.1.2"
 glow = "0.17.0"
@@ -27,7 +27,7 @@ thiserror = "2.0.18"
 uom = { version = "0.38.0" }
 anyhow = "1.0.102"
 bitflags = "2.11.1"
-egui_extras = "0.34.1"
+egui_extras = "0.34.2"
 
 [dev-dependencies]
 derive_more = { version = "2.1.1", features = ["try_from"] }
